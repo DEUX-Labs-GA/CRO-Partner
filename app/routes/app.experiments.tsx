@@ -18,9 +18,11 @@ export default function ExperimentsPage() {
 
   return (
     <s-page heading="Experiments">
-      <s-button slot="primary-action" href="/app/experiments/new">
-        Create experiment
-      </s-button>
+      <a href="/app/experiments/new">
+        <s-button slot="primary-action">
+          Create experiment
+        </s-button>
+      </a>
       {experiments.length === 0 ? (
         <s-section heading="No experiments yet">
           <s-paragraph>

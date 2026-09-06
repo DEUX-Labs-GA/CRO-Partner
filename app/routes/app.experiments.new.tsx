@@ -1,6 +1,6 @@
 import { MetricType } from "@prisma/client";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Form, redirect, useActionData } from "react-router";
+import { redirect, useActionData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -58,7 +58,7 @@ export default function NewExperimentPage() {
   return (
     <s-page heading="Create experiment">
       {actionData?.error && <s-banner tone="critical">{actionData.error}</s-banner>}
-      <Form method="post">
+      <form method="post">
         <s-section heading="Hypothesis">
           <s-stack direction="block" gap="base">
             <s-text-field label="Experiment name" name="name" required />
@@ -83,7 +83,7 @@ export default function NewExperimentPage() {
           </s-stack>
         </s-section>
         <s-button variant="primary" type="submit">Save draft</s-button>
-      </Form>
+      </form>
     </s-page>
   );
 }
