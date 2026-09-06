@@ -59,7 +59,9 @@ export default function ExperimentDetailPage() {
         <s-paragraph>
           Order-volume data: {preAnalysis.orderDataAvailable ? "Available" : "Unavailable"}
         </s-paragraph>
-        <s-paragraph>Current order count: {preAnalysis.orderCount ?? "Unavailable"}</s-paragraph>
+        <s-paragraph>
+          Recent order count ({preAnalysis.orderWindow.label}): {preAnalysis.recentOrderCount ?? "Unavailable"}
+        </s-paragraph>
         <s-paragraph>Product count: {preAnalysis.productCount}</s-paragraph>
         <s-paragraph>Readiness: {preAnalysis.readiness}</s-paragraph>
         <s-paragraph>{preAnalysis.explanation}</s-paragraph>
