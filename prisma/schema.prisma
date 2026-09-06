@@ -14,21 +14,93 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+enum ExperimentStatus {
+  DRAFT
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+enum MetricType {
+  CONVERSION_RATE
+  REVENUE
+  AVERAGE_ORDER_VALUE
+  CUSTOM
+}
+
+enum RecommendationStatus {
+  OPEN
+  ACCEPTED
+  DISMISSED
+}
+
+model Experiment {
+  id         String           @id @default(cuid())
+  shop       String
+  name       String
+  hypothesis String
+  status     ExperimentStatus @default(DRAFT)
+  variants   Variant[]
+  metrics    Metric[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([shop])
+}
+
+model Variant {
+  id           String     @id @default(cuid())
+  experimentId String
+  name         String
+  isControl    Boolean    @default(false)
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([experimentId])
+}
+
+model Metric {
+  id           String     @id @default(cuid())
+  experimentId String
+  name         String
+  type         MetricType
+  isPrimary    Boolean    @default(false)
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([experimentId])
+}
+
+model Recommendation {
+  id          String               @id @default(cuid())
+  shop        String
+  title       String
+  description String
+  status      RecommendationStatus @default(OPEN)
+  source      String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([shop])
 }
