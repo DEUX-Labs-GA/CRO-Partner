@@ -1,19 +1,11 @@
 import { MetricType } from "@prisma/client";
-import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { redirect } from "react-router";
+import type { ActionFunctionArgs, HeadersFunction } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  console.log("NEW EXPERIMENT LOADER START");
-  const auth = await authenticate.admin(request);
-  console.log("NEW EXPERIMENT AUTH COMPLETE", auth.session.shop);
-  return null;
-};
-
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, redirect } = await authenticate.admin(request);
   const formData = await request.formData();
   const name = String(formData.get("name") || "").trim();
   const hypothesis = String(formData.get("hypothesis") || "").trim();

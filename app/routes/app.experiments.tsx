@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, useLocation, useLoaderData } from "react-router";
+import { Link, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -15,11 +15,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function ExperimentsPage() {
   const experiments = useLoaderData<typeof loader>();
-  const location = useLocation();
 
   return (
     <s-page heading="Experiments">
-      <Link to={{ pathname: "/app/experiments/new", search: location.search }}>
+      <Link to="/app/experiments/new">
         <s-button slot="primary-action">
           Create experiment
         </s-button>
