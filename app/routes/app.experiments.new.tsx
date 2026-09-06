@@ -1,12 +1,14 @@
 import { MetricType } from "@prisma/client";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { redirect, useActionData } from "react-router";
+import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  console.log("NEW EXPERIMENT LOADER START");
+  const auth = await authenticate.admin(request);
+  console.log("NEW EXPERIMENT AUTH COMPLETE", auth.session.shop);
   return null;
 };
 
@@ -52,40 +54,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return redirect(`/app/experiments/${experiment.id}`);
 };
 
-export default function NewExperimentPage() {
-  const actionData = useActionData<typeof action>();
-
-  return (
-    <s-page heading="Create experiment">
-      {actionData?.error && <s-banner tone="critical">{actionData.error}</s-banner>}
-      <form method="post">
-        <s-section heading="Hypothesis">
-          <s-stack direction="block" gap="base">
-            <s-text-field label="Experiment name" name="name" required />
-            <s-text-area label="Hypothesis" name="hypothesis" required />
-          </s-stack>
-        </s-section>
-        <s-section heading="Primary metric">
-          <s-stack direction="block" gap="base">
-            <s-text-field label="Metric name" name="metricName" required />
-            <s-select label="Metric type" name="metricType" required>
-              <s-option value="CONVERSION_RATE">Conversion rate</s-option>
-              <s-option value="REVENUE">Revenue</s-option>
-              <s-option value="AVERAGE_ORDER_VALUE">Average order value</s-option>
-              <s-option value="CUSTOM">Custom</s-option>
-            </s-select>
-          </s-stack>
-        </s-section>
-        <s-section heading="Variants">
-          <s-stack direction="block" gap="base">
-            <s-text-field label="Control variant name" name="controlName" required />
-            <s-text-field label="Treatment variant name" name="treatmentName" required />
-          </s-stack>
-        </s-section>
-        <s-button variant="primary" type="submit">Save draft</s-button>
-      </form>
-    </s-page>
-  );
+export default function NewExperiment() {
+  return <div>NEW EXPERIMENT ROUTE WORKS</div>;
 }
 
 export const headers: HeadersFunction = (headersArgs) => {
