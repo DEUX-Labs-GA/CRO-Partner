@@ -18,16 +18,14 @@ export default function ExperimentsPage() {
 
   return (
     <s-page heading="Experiments">
-      <Link to="/app/experiments/new">
-        <s-button slot="primary-action">Create experiment</s-button>
-      </Link>
+      <Link to="/app/experiments/new">Create experiment</Link>
       {experiments.length === 0 ? (
         <s-section heading="No experiments yet">
           <s-paragraph>
             Create a hypothesis and define its primary metric to start the
             pre-analysis workflow.
           </s-paragraph>
-          <s-link href="/app/experiments/new">Create your first experiment</s-link>
+          <Link to="/app/experiments/new">Create your first experiment</Link>
         </s-section>
       ) : (
         <s-section heading="Experiment list">
