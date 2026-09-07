@@ -195,6 +195,16 @@ return {
 };
 }
 
+function formatEstimatedDuration(days: number): string {
+  if (days < 365) {
+    return `${days.toLocaleString()} days`;
+  }
+
+  const years = days / 365;
+
+  return `${days.toLocaleString()} days (~${years.toFixed(1)} years)`;
+}
+
 export function assessPreAnalysis(
   baseline: StoreBaseline,
   assumptions: FeasibilityAssumptions,
@@ -218,7 +228,7 @@ export function assessPreAnalysis(
       dataAvailability: "AVAILABLE",
       readiness: "LOW_VOLUME",
       estimate,
-      explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} sessions per variant and is estimated to run for ${estimate.estimatedDurationDays} days based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} estimated sessions per day. That exceeds the recommended ${MAX_RECOMMENDED_DURATION_DAYS}-day testing window. Consider increasing traffic, testing a larger change, or using another validation method.`,
+      explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} sessions per variant and is estimated to run for ${formatEstimatedDuration(estimate.estimatedDurationDays)} based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} estimated sessions per day. Do not run an A/B test at current volume. Consider qualitative validation, usability testing, customer research, or a monitored implementation instead.`,
     };
   }
 
@@ -227,6 +237,6 @@ export function assessPreAnalysis(
     dataAvailability: "AVAILABLE",
     readiness: "READY_FOR_ESTIMATION",
     estimate,
-    explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} sessions per variant and is estimated to run for ${estimate.estimatedDurationDays} days based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} estimated sessions per day, within the recommended ${MAX_RECOMMENDED_DURATION_DAYS}-day testing window.`,
+    explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} sessions per variant and is estimated to run for ${formatEstimatedDuration(estimate.estimatedDurationDays)} based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} estimated sessions per day, within the recommended ${MAX_RECOMMENDED_DURATION_DAYS}-day testing window.`,
   };
 }
