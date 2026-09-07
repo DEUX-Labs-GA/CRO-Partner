@@ -54,15 +54,19 @@ enum RecommendationStatus {
 }
 
 model Experiment {
-  id         String           @id @default(cuid())
-  shop       String
-  name       String
-  hypothesis String
-  status     ExperimentStatus @default(DRAFT)
-  variants   Variant[]
-  metrics    Metric[]
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id                      String           @id @default(cuid())
+  shop                    String
+  name                    String
+  hypothesis              String
+  baselineConversionRate  Float?
+  minimumDetectableEffect Float            @default(0.2)
+  significanceLevel       Float            @default(0.95)
+  statisticalPower        Float            @default(0.8)
+  status                  ExperimentStatus @default(DRAFT)
+  variants                Variant[]
+  metrics                 Metric[]
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
 
   @@index([shop])
 }

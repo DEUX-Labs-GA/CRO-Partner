@@ -26,7 +26,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   return {
     experiment,
-    preAnalysis: assessPreAnalysis(baseline),
+    preAnalysis: assessPreAnalysis(baseline, {
+      baselineConversionRate: experiment.baselineConversionRate,
+      minimumDetectableEffect: experiment.minimumDetectableEffect,
+      significanceLevel: experiment.significanceLevel,
+      statisticalPower: experiment.statisticalPower,
+    }),
   };
 };
 
@@ -62,7 +67,27 @@ export default function ExperimentDetailPage() {
         <s-paragraph>
           Recent order count ({preAnalysis.orderWindow.label}): {preAnalysis.recentOrderCount ?? "Unavailable"}
         </s-paragraph>
+        <s-paragraph>
+          Observation window: {preAnalysis.orderWindow.days} days
+        </s-paragraph>
+        <s-paragraph>
+          Orders per day: {preAnalysis.ordersPerDay?.toFixed(2) ?? "Unavailable"}
+        </s-paragraph>
         <s-paragraph>Product count: {preAnalysis.productCount}</s-paragraph>
+        <s-paragraph>
+          Baseline conversion rate (merchant-provided): {preAnalysis.estimate ? `${(preAnalysis.estimate.baselineConversionRate * 100).toFixed(2)}%` : experiment.baselineConversionRate ? `${(experiment.baselineConversionRate * 100).toFixed(2)}%` : "Missing"}
+        </s-paragraph>
+        <s-paragraph>MDE: {(experiment.minimumDetectableEffect * 100).toFixed(0)}% relative improvement</s-paragraph>
+        {preAnalysis.estimate ? (
+          <>
+            <s-paragraph>Target conversion rate: {(preAnalysis.estimate.targetConversionRate * 100).toFixed(2)}%</s-paragraph>
+            <s-paragraph>Estimated sessions per day: {Math.round(preAnalysis.estimate.estimatedSessionsPerDay).toLocaleString()}</s-paragraph>
+            <s-paragraph>Estimated sessions per day is inferred from recent orders and the merchant-provided baseline conversion rate.</s-paragraph>
+            <s-paragraph>Required sample per variant: {preAnalysis.estimate.requiredSamplePerVariant.toLocaleString()}</s-paragraph>
+            <s-paragraph>Total required sample: {preAnalysis.estimate.totalRequiredSample.toLocaleString()}</s-paragraph>
+            <s-paragraph>Estimated duration: {preAnalysis.estimate.estimatedDurationDays} days</s-paragraph>
+          </>
+        ) : null}
         <s-paragraph>Readiness: {preAnalysis.readiness}</s-paragraph>
         <s-paragraph>{preAnalysis.explanation}</s-paragraph>
       </s-section>

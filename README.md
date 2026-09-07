@@ -8,7 +8,8 @@ The app currently supports:
 
 - An authenticated embedded Shopify admin experience.
 - A store overview with shop name, currency, product count, and orders from the last 30 days.
-- A lightweight pre-analysis readiness assessment based on recent order volume.
+- A pre-analysis feasibility assessment using recent order volume, merchant-provided
+	conversion assumptions, and a two-proportion sample-size approximation.
 - Creating experiments with a hypothesis, control and treatment variants, and a primary metric.
 - Persisting Shopify sessions and CRO records with Prisma and SQLite.
 - Shopify uninstall and scope-update webhooks.
@@ -23,6 +24,11 @@ Analytics reporting and generated recommendations are present in the navigation,
 - Prisma 6 with SQLite
 - TypeScript and Vite
 - Shopify CLI
+
+The feasibility estimate currently uses recent orders per day as the available
+volume signal for duration planning. Shopify session or visitor data is not
+available through the current integration, so the baseline conversion rate must
+be entered by the merchant and order count is never used as its denominator.
 
 ## Prerequisites
 
@@ -82,7 +88,7 @@ npm run setup
 
 Prisma stores Shopify sessions and the core CRO entities:
 
-- `Experiment`: name, hypothesis, status, and timestamps
+- `Experiment`: name, hypothesis, feasibility assumptions, status, and timestamps
 - `Variant`: control or treatment options belonging to an experiment
 - `Metric`: experiment metrics, including the primary metric
 - `Recommendation`: recommendation text, source, and workflow status

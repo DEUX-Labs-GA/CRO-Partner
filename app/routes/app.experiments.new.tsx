@@ -31,6 +31,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const metricType = String(formData.get("metricType") || "");
     const controlName = String(formData.get("controlName") || "").trim();
     const treatmentName = String(formData.get("treatmentName") || "").trim();
+    const baselineConversionRate = Number(formData.get("baselineConversionRate")) / 100;
+    const minimumDetectableEffect = Number(formData.get("minimumDetectableEffect")) / 100;
+    const significanceLevel = Number(formData.get("significanceLevel")) / 100;
+    const statisticalPower = Number(formData.get("statisticalPower")) / 100;
 
     if (!name || !hypothesis || !metricName || !controlName || !treatmentName) {
       return { error: "Complete every field before saving the experiment." };
@@ -40,11 +44,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return { error: "Select a valid primary metric type." };
     }
 
+    if (
+      !Number.isFinite(baselineConversionRate) || baselineConversionRate <= 0 || baselineConversionRate >= 1 ||
+      !Number.isFinite(minimumDetectableEffect) || minimumDetectableEffect <= 0 ||
+      !Number.isFinite(significanceLevel) || significanceLevel <= 0 || significanceLevel >= 1 ||
+      !Number.isFinite(statisticalPower) || statisticalPower <= 0 || statisticalPower >= 1
+    ) {
+      return { error: "Enter valid feasibility assumptions as percentages." };
+    }
+
     const experiment = await prisma.experiment.create({
       data: {
         shop: auth.session.shop,
         name,
         hypothesis,
+        baselineConversionRate,
+        minimumDetectableEffect,
+        significanceLevel,
+        statisticalPower,
         variants: {
           create: [
             { name: controlName, isControl: true },
@@ -130,6 +147,45 @@ export default function NewExperiment() {
           <s-text-field
             label="Treatment variant name"
             name="treatmentName"
+            required
+          />
+
+          <s-number-field
+            label="Baseline conversion rate (%) - merchant-provided"
+            name="baselineConversionRate"
+            value="5"
+            min={0.01}
+            max={99.99}
+            step={0.01}
+            required
+          />
+
+          <s-number-field
+            label="Minimum detectable effect (relative improvement, %)"
+            name="minimumDetectableEffect"
+            value="20"
+            min={0.01}
+            step={0.01}
+            required
+          />
+
+          <s-number-field
+            label="Significance level (%)"
+            name="significanceLevel"
+            value="95"
+            min={0.01}
+            max={99.99}
+            step={0.01}
+            required
+          />
+
+          <s-number-field
+            label="Statistical power (%)"
+            name="statisticalPower"
+            value="80"
+            min={0.01}
+            max={99.99}
+            step={0.01}
             required
           />
 
