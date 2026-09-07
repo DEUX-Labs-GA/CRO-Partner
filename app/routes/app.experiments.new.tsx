@@ -110,15 +110,16 @@ export default function NewExperiment() {
             required
           />
 
-          <s-select
-            label="Primary metric type"
-            name="metricType"
-            required
-          >
-            <s-option value="CONVERSION">Conversion</s-option>
-            <s-option value="REVENUE">Revenue</s-option>
-            <s-option value="ENGAGEMENT">Engagement</s-option>
-          </s-select>
+<s-select
+  label="Primary metric type"
+  name="metricType"
+  required
+>
+  <s-option value="CONVERSION_RATE">Conversion rate</s-option>
+  <s-option value="REVENUE">Revenue</s-option>
+  <s-option value="AVERAGE_ORDER_VALUE">Average order value</s-option>
+  <s-option value="CUSTOM">Custom</s-option>
+</s-select>
 
           <s-text-field
             label="Control variant name"
