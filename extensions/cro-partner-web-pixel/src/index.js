@@ -10,14 +10,41 @@ register(({ analytics, settings }) => {
       ? settings.sourceID.trim()
       : "cro-partner";
 
+  const endpointURL =
+    typeof settings.endpointURL === "string"
+      ? settings.endpointURL.trim()
+      : "";
+
+  const shopDomain =
+    typeof settings.shopDomain === "string"
+      ? settings.shopDomain.trim()
+      : "";
+
   CRO_PARTNER_EVENT_NAMES.forEach((eventName) => {
     analytics.subscribe(eventName, (event) => {
-      const payload = normalizeShopifyEvent(event, { sourceId });
+      const payload = {
+        ...normalizeShopifyEvent(event, { sourceId }),
+        shop: shopDomain || null,
+      };
 
-      // Transport is intentionally deferred until the receiving endpoint and
-      // request validation are implemented. Shopify's pixel debugger exposes
-      // this payload so the event contract can be validated safely first.
-      console.info("[CRO Partner pixel]", payload);
+      if (!endpointURL || !shopDomain) {
+        console.warn(
+          "[CRO Partner pixel] Transport skipped: endpointURL or shopDomain missing.",
+        );
+        return;
+      }
+
+      fetch(endpointURL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "omit",
+        body: JSON.stringify(payload),
+      }).catch((error) => {
+        // Behavioral analytics must never interfere with the storefront.
+        console.warn("[CRO Partner pixel] Event delivery failed.", error);
+      });
     });
   });
 });
