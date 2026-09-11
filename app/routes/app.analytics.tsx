@@ -17,7 +17,8 @@ export default function AnalyticsPage() {
     <s-page heading="Analytics">
       <s-section heading="PDP to purchase funnel">
         <s-paragraph>
-          Unique tracked visitors moving from product view through purchase.
+          Unique tracked visitors moving from product view through purchase
+          during the last {funnel.windowDays} days.
         </s-paragraph>
       </s-section>
 
@@ -43,12 +44,13 @@ export default function AnalyticsPage() {
         </s-section>
       </s-stack>
 
-      <s-section heading="Funnel">
+      <s-section heading={`Funnel — last ${funnel.windowDays} days`}>
         <s-table>
           <s-table-header-row>
             <s-table-header>Step</s-table-header>
             <s-table-header>Visitors</s-table-header>
-            <s-table-header>From previous step</s-table-header>
+            <s-table-header>From previous</s-table-header>
+            <s-table-header>Drop-off</s-table-header>
             <s-table-header>From product view</s-table-header>
           </s-table-header-row>
 
@@ -56,10 +58,20 @@ export default function AnalyticsPage() {
             {funnel.steps.map((step) => (
               <s-table-row key={step.eventName}>
                 <s-table-cell>{step.label}</s-table-cell>
+
                 <s-table-cell>{step.visitors}</s-table-cell>
+
                 <s-table-cell>
                   {formatPercent(step.rateFromPrevious)}
                 </s-table-cell>
+
+                <s-table-cell>
+                  {formatDropOff(
+                    step.dropOffFromPrevious,
+                    step.dropOffRateFromPrevious,
+                  )}
+                </s-table-cell>
+
                 <s-table-cell>
                   {formatPercent(step.rateFromProductView)}
                 </s-table-cell>
@@ -71,9 +83,10 @@ export default function AnalyticsPage() {
 
       <s-section heading="About this data">
         <s-paragraph>
-          Funnel counts are based on unique Web Pixel client IDs captured by CRO
-          Partner. Shopify order count is not being used as the traffic
-          denominator.
+          Funnel counts use unique CRO Partner Web Pixel client IDs. Each
+          visitor must progress through the tracked funnel steps in sequence
+          during the reporting window. Shopify order count is not used as the
+          traffic denominator.
         </s-paragraph>
       </s-section>
     </s-page>
@@ -86,6 +99,17 @@ function formatPercent(value: number | null) {
   }
 
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatDropOff(
+  visitors: number | null,
+  rate: number | null,
+) {
+  if (visitors === null || rate === null) {
+    return "—";
+  }
+
+  return `${visitors} (${formatPercent(rate)})`;
 }
 
 function formatCurrency(value: number, currency: string | null) {
