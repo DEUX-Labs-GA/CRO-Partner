@@ -1,21 +1,138 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { Form, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { loadProductFunnel } from "../services/product-funnel.server";
+import { loadTrackedProducts } from "../services/tracked-products.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  const url = new URL(request.url);
 
-  return loadProductFunnel(session.shop);
+  const selectedProductId = url.searchParams.get("productId") ?? "";
+
+  const products = await loadTrackedProducts(session.shop);
+
+  const selectedProduct =
+    products.find(
+      (product) => product.productId === selectedProductId,
+    ) ?? null;
+
+  /*
+   * Only use a product ID that belongs to a tracked product option
+   * for this authenticated shop.
+   */
+  const funnelProductId = selectedProduct?.productId ?? null;
+
+  const funnel = await loadProductFunnel(
+    session.shop,
+    funnelProductId,
+  );
+
+  return {
+    funnel,
+    products,
+    selectedProductId: funnelProductId ?? "",
+    selectedProduct,
+  };
 };
 
 export default function AnalyticsPage() {
-  const funnel = useLoaderData<typeof loader>();
+  const {
+    funnel,
+    products,
+    selectedProductId,
+    selectedProduct,
+  } = useLoaderData<typeof loader>();
+
+  const isProductFiltered = Boolean(selectedProduct);
 
   return (
     <s-page heading="Analytics">
-      <s-section heading="PDP to purchase funnel">
+      <s-section heading="Product">
+        <s-paragraph>
+          Choose a product observed in tracked PDP activity during the last{" "}
+          {funnel.windowDays} days.
+        </s-paragraph>
+
+        <Form method="get">
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              alignItems: "end",
+              flexWrap: "wrap",
+              marginTop: "12px",
+            }}
+          >
+            <div>
+              <label
+                htmlFor="productId"
+                style={{
+                  display: "block",
+                  fontWeight: 600,
+                  marginBottom: "6px",
+                }}
+              >
+                Product
+              </label>
+
+              <select
+                id="productId"
+                name="productId"
+                defaultValue={selectedProductId}
+                style={{
+                  minWidth: "320px",
+                  minHeight: "36px",
+                  padding: "6px 10px",
+                }}
+              >
+                <option value="">All tracked products</option>
+
+                {products.map((product) => (
+                  <option
+                    key={product.productId}
+                    value={product.productId}
+                  >
+                    {product.label} ({product.visitors} tracked visitor
+                    {product.visitors === 1 ? "" : "s"})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              style={{
+                minHeight: "36px",
+                padding: "6px 16px",
+                cursor: "pointer",
+              }}
+            >
+              Apply
+            </button>
+          </div>
+        </Form>
+
+        {selectedProduct ? (
+          <s-paragraph>
+            Showing visitor-path funnel attribution for{" "}
+            {selectedProduct.label}.
+          </s-paragraph>
+        ) : (
+          <s-paragraph>
+            Showing the funnel across all tracked products.
+          </s-paragraph>
+        )}
+      </s-section>
+
+      <s-section
+        heading={
+          selectedProduct
+            ? `${selectedProduct.label} — PDP to purchase funnel`
+            : "PDP to purchase funnel"
+        }
+      >
         <s-paragraph>
           Unique tracked visitors moving from product view through purchase
           during the last {funnel.windowDays} days.
@@ -37,7 +154,13 @@ export default function AnalyticsPage() {
           </s-paragraph>
         </s-section>
 
-        <s-section heading="Tracked revenue">
+        <s-section
+          heading={
+            isProductFiltered
+              ? "Attributed revenue"
+              : "Tracked revenue"
+          }
+        >
           <s-paragraph>
             {formatCurrency(funnel.totalRevenue, funnel.currency)}
           </s-paragraph>
@@ -82,12 +205,23 @@ export default function AnalyticsPage() {
       </s-section>
 
       <s-section heading="About this data">
-        <s-paragraph>
-          Funnel counts use unique CRO Partner Web Pixel client IDs. Each
-          visitor must progress through the tracked funnel steps in sequence
-          during the reporting window. Shopify order count is not used as the
-          traffic denominator.
-        </s-paragraph>
+        {isProductFiltered ? (
+          <s-paragraph>
+            Product-specific reporting uses visitor-path attribution. A visitor
+            must view and add the selected product to cart before their later
+            checkout and purchase events are attributed to this funnel.
+            Checkout and purchase events do not currently provide exact
+            line-item product attribution, so attributed revenue should not be
+            interpreted as SKU-level revenue.
+          </s-paragraph>
+        ) : (
+          <s-paragraph>
+            Funnel counts use unique CRO Partner Web Pixel client IDs. Each
+            visitor must progress through the tracked funnel steps in sequence
+            during the reporting window. Shopify order count is not used as the
+            traffic denominator.
+          </s-paragraph>
+        )}
       </s-section>
     </s-page>
   );

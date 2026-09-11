@@ -14,6 +14,7 @@ type FunnelEventName = (typeof FUNNEL_EVENTS)[number];
 type FunnelEvent = {
   eventName: string;
   clientId: string | null;
+  productId: string | null;
   value: number | null;
   currency: string | null;
   occurredAt: Date;
@@ -29,7 +30,14 @@ type FunnelStep = {
   dropOffRateFromPrevious: number | null;
 };
 
-export async function loadProductFunnel(shop: string) {
+type FunnelOptions = {
+  selectedProductId?: string | null;
+};
+
+export async function loadProductFunnel(
+  shop: string,
+  selectedProductId?: string | null,
+) {
   const windowStart = new Date();
 
   windowStart.setUTCDate(
@@ -52,6 +60,7 @@ export async function loadProductFunnel(shop: string) {
     select: {
       eventName: true,
       clientId: true,
+      productId: true,
       value: true,
       currency: true,
       occurredAt: true,
@@ -61,13 +70,18 @@ export async function loadProductFunnel(shop: string) {
     },
   });
 
-  return summarizeProductFunnel(events, windowStart);
+  return summarizeProductFunnel(events, windowStart, {
+    selectedProductId,
+  });
 }
 
 export function summarizeProductFunnel(
   events: FunnelEvent[],
   windowStart: Date,
+  options: FunnelOptions = {},
 ) {
+  const selectedProductId = options.selectedProductId ?? null;
+
   const visitorsByStage = new Map<FunnelEventName, Set<string>>();
 
   for (const eventName of FUNNEL_EVENTS) {
@@ -92,11 +106,18 @@ export function summarizeProductFunnel(
     const currentStage = progressByClient.get(event.clientId) ?? -1;
 
     /*
-     * A visitor enters the funnel only with a product view.
-     * Later stages count only when the same visitor reached the
-     * immediately preceding stage earlier in the reporting window.
+     * A visitor enters the funnel with a tracked PDP view.
+     * When a product is selected, that PDP view must belong
+     * to the selected product.
      */
     if (eventStage === 0) {
+      if (
+        selectedProductId &&
+        event.productId !== selectedProductId
+      ) {
+        continue;
+      }
+
       visitorsByStage.get("product_viewed")?.add(event.clientId);
 
       if (currentStage < 0) {
@@ -106,6 +127,22 @@ export function summarizeProductFunnel(
       continue;
     }
 
+    /*
+     * Product-specific add-to-cart attribution is exact because
+     * the cart event carries a product ID.
+     */
+    if (
+      selectedProductId &&
+      event.eventName === "product_added_to_cart" &&
+      event.productId !== selectedProductId
+    ) {
+      continue;
+    }
+
+    /*
+     * Later stages count only when this visitor already reached
+     * the immediately preceding funnel stage.
+     */
     if (currentStage < eventStage - 1) {
       continue;
     }
@@ -116,6 +153,11 @@ export function summarizeProductFunnel(
       progressByClient.set(event.clientId, eventStage);
     }
 
+    /*
+     * Checkout-completed events currently do not contain
+     * line-item product IDs in CRO Partner's normalized payload.
+     * Product-level revenue is therefore visitor-path attributed.
+     */
     if (event.eventName === "checkout_completed") {
       revenue += event.value ?? 0;
       currency ??= event.currency;
@@ -172,6 +214,10 @@ export function summarizeProductFunnel(
     ),
     windowDays: PRODUCT_FUNNEL_WINDOW_DAYS,
     windowStart: windowStart.toISOString(),
+    selectedProductId,
+    attributionMode: selectedProductId
+      ? ("visitor_path" as const)
+      : ("store_wide" as const),
   };
 }
 

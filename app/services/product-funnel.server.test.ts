@@ -7,11 +7,17 @@ function event(
   eventName: string,
   clientId: string,
   occurredAt: string,
-  value: number | null = null,
+  options: {
+    productId?: string | null;
+    value?: number | null;
+  } = {},
 ) {
+  const value = options.value ?? null;
+
   return {
     eventName,
     clientId,
+    productId: options.productId ?? null,
     value,
     currency: value === null ? null : "USD",
     occurredAt: new Date(occurredAt),
@@ -29,7 +35,7 @@ describe("product funnel", () => {
           "checkout_completed",
           "visitor-1",
           "2026-09-10T10:03:00Z",
-          100,
+          { value: 100 },
         ),
       ],
       windowStart,
@@ -52,13 +58,13 @@ describe("product funnel", () => {
           "checkout_completed",
           "visitor-1",
           "2026-09-10T10:02:00Z",
-          100,
+          { value: 100 },
         ),
         event(
           "checkout_completed",
           "visitor-2",
           "2026-09-10T10:03:00Z",
-          200,
+          { value: 200 },
         ),
       ],
       windowStart,
@@ -100,5 +106,96 @@ describe("product funnel", () => {
 
     expect(result.steps[0].visitors).toBe(1);
     expect(result.steps[1].visitors).toBe(1);
+  });
+
+  it("builds a funnel only from visitors who viewed the selected product", () => {
+    const result = summarizeProductFunnel(
+      [
+        event(
+          "product_viewed",
+          "visitor-1",
+          "2026-09-10T10:00:00Z",
+          { productId: "product-a" },
+        ),
+        event(
+          "product_added_to_cart",
+          "visitor-1",
+          "2026-09-10T10:01:00Z",
+          { productId: "product-a" },
+        ),
+        event("checkout_started", "visitor-1", "2026-09-10T10:02:00Z"),
+        event(
+          "checkout_completed",
+          "visitor-1",
+          "2026-09-10T10:03:00Z",
+          { value: 100 },
+        ),
+
+        event(
+          "product_viewed",
+          "visitor-2",
+          "2026-09-10T11:00:00Z",
+          { productId: "product-b" },
+        ),
+        event(
+          "product_added_to_cart",
+          "visitor-2",
+          "2026-09-10T11:01:00Z",
+          { productId: "product-b" },
+        ),
+        event("checkout_started", "visitor-2", "2026-09-10T11:02:00Z"),
+        event(
+          "checkout_completed",
+          "visitor-2",
+          "2026-09-10T11:03:00Z",
+          { value: 200 },
+        ),
+      ],
+      windowStart,
+      {
+        selectedProductId: "product-a",
+      },
+    );
+
+    expect(result.steps.map((step) => step.visitors)).toEqual([
+      1, 1, 1, 1,
+    ]);
+    expect(result.totalRevenue).toBe(100);
+    expect(result.attributionMode).toBe("visitor_path");
+  });
+
+  it("requires selected-product add to cart before downstream attribution", () => {
+    const result = summarizeProductFunnel(
+      [
+        event(
+          "product_viewed",
+          "visitor-1",
+          "2026-09-10T10:00:00Z",
+          { productId: "product-a" },
+        ),
+        event(
+          "product_added_to_cart",
+          "visitor-1",
+          "2026-09-10T10:01:00Z",
+          { productId: "product-b" },
+        ),
+        event("checkout_started", "visitor-1", "2026-09-10T10:02:00Z"),
+        event(
+          "checkout_completed",
+          "visitor-1",
+          "2026-09-10T10:03:00Z",
+          { value: 100 },
+        ),
+      ],
+      windowStart,
+      {
+        selectedProductId: "product-a",
+      },
+    );
+
+    expect(result.steps.map((step) => step.visitors)).toEqual([
+      1, 0, 0, 0,
+    ]);
+    expect(result.totalRevenue).toBe(0);
   });
 });
