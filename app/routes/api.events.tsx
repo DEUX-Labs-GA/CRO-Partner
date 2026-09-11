@@ -1,6 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { persistBehaviorEvent } from "../services/behavior-event.server";
 
+export const MAX_EVENT_REQUEST_BYTES = 64 * 1024;
+
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -16,20 +18,48 @@ export async function action({ request }: ActionFunctionArgs) {
     });
   }
 
-  try {
-    const contentType = request.headers.get("content-type") ?? "";
+  const contentType = request.headers.get("content-type") ?? "";
 
-    if (!contentType.includes("application/json")) {
+  if (!contentType.includes("application/json")) {
+    return Response.json(
+      { ok: false, error: "Expected application/json." },
+      {
+        status: 415,
+        headers: corsHeaders(),
+      },
+    );
+  }
+
+  const declaredLength = Number(request.headers.get("content-length"));
+
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_EVENT_REQUEST_BYTES
+  ) {
+    return Response.json(
+      { ok: false, error: "Request too large." },
+      {
+        status: 413,
+        headers: corsHeaders(),
+      },
+    );
+  }
+
+  try {
+    const rawBody = await request.text();
+    const bodySize = new TextEncoder().encode(rawBody).byteLength;
+
+    if (bodySize > MAX_EVENT_REQUEST_BYTES) {
       return Response.json(
-        { ok: false, error: "Expected application/json." },
+        { ok: false, error: "Request too large." },
         {
-          status: 415,
+          status: 413,
           headers: corsHeaders(),
         },
       );
     }
 
-    const body = await request.json();
+    const body = JSON.parse(rawBody);
     const result = await persistBehaviorEvent(body);
 
     return Response.json(
