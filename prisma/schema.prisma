@@ -63,6 +63,7 @@ model Experiment {
   significanceLevel       Float            @default(0.95)
   statisticalPower        Float            @default(0.8)
   status                  ExperimentStatus @default(DRAFT)
+  trackingKey             String?
   variants                Variant[]
   metrics                 Metric[]
   createdAt               DateTime         @default(now())

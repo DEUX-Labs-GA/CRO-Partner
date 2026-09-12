@@ -7,6 +7,7 @@ import {
   assessPreAnalysis,
   loadStoreBaseline,
 } from "../services/experiment-pre-analysis.server";
+import { loadExperimentResults } from "../services/experiment-results.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -24,8 +25,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const baseline = await loadStoreBaseline(admin);
 
+  const results = experiment.trackingKey
+    ? await loadExperimentResults(
+        session.shop,
+        experiment.trackingKey,
+      )
+    : null;
+
   return {
     experiment,
+    results,
     preAnalysis: assessPreAnalysis(baseline, {
       baselineConversionRate: experiment.baselineConversionRate,
       minimumDetectableEffect: experiment.minimumDetectableEffect,
@@ -36,7 +45,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function ExperimentDetailPage() {
-  const { experiment, preAnalysis } = useLoaderData<typeof loader>();
+  const { experiment, preAnalysis, results } =
+    useLoaderData<typeof loader>();
   const primaryMetric = experiment.metrics[0];
 
   return (
@@ -59,6 +69,89 @@ export default function ExperimentDetailPage() {
           ))}
         </s-unordered-list>
       </s-section>
+      <s-section heading="Experiment results">
+        {!results ? (
+          <s-paragraph>
+            Results tracking has not been connected to this experiment yet.
+          </s-paragraph>
+        ) : results.totalExposedVisitors === 0 ? (
+          <s-paragraph>
+            No experiment exposures have been recorded yet.
+          </s-paragraph>
+        ) : (
+          <>
+            <s-paragraph>
+              Exposed visitors: {results.totalExposedVisitors}
+            </s-paragraph>
+
+            {results.variants.map((variant) => (
+              <s-section
+                key={variant.variantId}
+                heading={
+                  variant.variantId === "control"
+                    ? "Control"
+                    : variant.variantId
+                }
+              >
+                <s-paragraph>
+                  Visitors: {variant.visitors}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Added to cart: {variant.addedToCart}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Checkout started: {variant.checkoutStarted}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Purchases: {variant.purchases}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Conversion rate:{" "}
+                  {variant.conversionRate === null
+                    ? "—"
+                    : `${(variant.conversionRate * 100).toFixed(2)}%`}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Revenue:{" "}
+                  {new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: results.currency ?? "USD",
+                  }).format(variant.revenue)}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Revenue per visitor:{" "}
+                  {variant.revenuePerVisitor === null
+                    ? "—"
+                    : new Intl.NumberFormat("en-US", {
+                        style: "currency",
+                        currency: results.currency ?? "USD",
+                      }).format(variant.revenuePerVisitor)}
+                </s-paragraph>
+              </s-section>
+            ))}
+
+            {results.excludedAmbiguousVisitors > 0 ? (
+              <s-paragraph>
+                Excluded ambiguous visitors:{" "}
+                {results.excludedAmbiguousVisitors}
+              </s-paragraph>
+            ) : null}
+
+            <s-paragraph>
+              Results currently use visitor-path attribution: commerce
+              activity occurring after experiment exposure is attributed
+              using the same Shopify client ID.
+            </s-paragraph>
+          </>
+        )}
+      </s-section>
+
       <s-section heading="Pre-analysis">
         <s-paragraph>Data availability: {preAnalysis.dataAvailability}</s-paragraph>
         <s-paragraph>
