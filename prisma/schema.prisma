@@ -131,8 +131,10 @@ model BehaviorEvent {
   value         Float?
   currency      String?
   checkoutToken String?
-  orderId       String?
-  createdAt     DateTime @default(now())
+  orderId             String?
+  experimentId        String?
+  experimentVariantId String?
+  createdAt           DateTime @default(now())
 
   @@unique([shop, eventId])
   @@index([shop, eventName, occurredAt])

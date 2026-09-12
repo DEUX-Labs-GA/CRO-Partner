@@ -5,12 +5,16 @@ export const CRO_PARTNER_EVENT_NAMES = Object.freeze([
   "checkout_completed",
 ]);
 
+export const CRO_PARTNER_EXPOSURE_EVENT =
+  "cro_partner:experiment_exposure";
+
 export const CRO_PARTNER_EVENT_SCHEMA_VERSION = "1.0";
 
 export function normalizeShopifyEvent(event, options = {}) {
   const location = event?.context?.document?.location;
   const documentContext = event?.context?.document;
   const commerce = readCommerceContext(event);
+  const experiment = readExperimentContext(event);
 
   return {
     schemaVersion: CRO_PARTNER_EVENT_SCHEMA_VERSION,
@@ -28,6 +32,24 @@ export function normalizeShopifyEvent(event, options = {}) {
       title: documentContext?.title ?? null,
     },
     commerce,
+    ...(experiment ? { experiment } : {}),
+  };
+}
+
+function readExperimentContext(event) {
+  if (event?.name !== CRO_PARTNER_EXPOSURE_EVENT) {
+    return null;
+  }
+
+  const customData = event?.customData;
+
+  if (!customData || typeof customData !== "object") {
+    return null;
+  }
+
+  return {
+    experimentId: customData.experimentId ?? null,
+    variantId: customData.variantId ?? null,
   };
 }
 
@@ -42,7 +64,10 @@ function readCommerceContext(event) {
     return readProductAddedToCart(event?.data);
   }
 
-  if (eventName === "checkout_started" || eventName === "checkout_completed") {
+  if (
+    eventName === "checkout_started" ||
+    eventName === "checkout_completed"
+  ) {
     return readCheckout(event?.data?.checkout);
   }
 
@@ -74,9 +99,13 @@ function readProductAddedToCart(data) {
     variantId: variant?.id ?? null,
     sku: variant?.sku ?? null,
     quantity: toNumber(cartLine?.quantity),
-    value: toNumber(totalAmount?.amount ?? variant?.price?.amount),
+    value: toNumber(
+      totalAmount?.amount ?? variant?.price?.amount,
+    ),
     currency:
-      totalAmount?.currencyCode ?? variant?.price?.currencyCode ?? null,
+      totalAmount?.currencyCode ??
+      variant?.price?.currencyCode ??
+      null,
   };
 }
 
@@ -89,7 +118,8 @@ function readCheckout(checkout) {
     orderId: checkout?.order?.id ?? null,
     quantity: Array.isArray(checkout?.lineItems)
       ? checkout.lineItems.reduce(
-          (total, lineItem) => total + (toNumber(lineItem?.quantity) ?? 0),
+          (total, lineItem) =>
+            total + (toNumber(lineItem?.quantity) ?? 0),
           0,
         )
       : null,
@@ -112,10 +142,15 @@ function emptyCommerceContext() {
 }
 
 function toNumber(value) {
-  if (value === null || value === undefined || value === "") {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
     return null;
   }
 
   const number = Number(value);
+
   return Number.isFinite(number) ? number : null;
 }

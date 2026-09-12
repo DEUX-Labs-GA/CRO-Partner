@@ -1,12 +1,14 @@
 import { register } from "@shopify/web-pixels-extension";
 import {
   CRO_PARTNER_EVENT_NAMES,
+  CRO_PARTNER_EXPOSURE_EVENT,
   normalizeShopifyEvent,
 } from "./event-schema";
 
 register(({ analytics, settings }) => {
   const sourceId =
-    typeof settings.sourceID === "string" && settings.sourceID.trim()
+    typeof settings.sourceID === "string" &&
+    settings.sourceID.trim()
       ? settings.sourceID.trim()
       : "cro-partner";
 
@@ -20,31 +22,40 @@ register(({ analytics, settings }) => {
       ? settings.shopDomain.trim()
       : "";
 
-  CRO_PARTNER_EVENT_NAMES.forEach((eventName) => {
-    analytics.subscribe(eventName, (event) => {
-      const payload = {
-        ...normalizeShopifyEvent(event, { sourceId }),
-        shop: shopDomain || null,
-      };
+  const sendEvent = (event) => {
+    const payload = {
+      ...normalizeShopifyEvent(event, { sourceId }),
+      shop: shopDomain || null,
+    };
 
-      if (!endpointURL || !shopDomain) {
-        console.warn(
-          "[CRO Partner pixel] Transport skipped: endpointURL or shopDomain missing.",
-        );
-        return;
-      }
+    if (!endpointURL || !shopDomain) {
+      console.warn(
+        "[CRO Partner pixel] Transport skipped: endpointURL or shopDomain missing.",
+      );
+      return;
+    }
 
-      fetch(endpointURL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "omit",
-        body: JSON.stringify(payload),
-      }).catch((error) => {
-        // Behavioral analytics must never interfere with the storefront.
-        console.warn("[CRO Partner pixel] Event delivery failed.", error);
-      });
+    fetch(endpointURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "omit",
+      body: JSON.stringify(payload),
+    }).catch((error) => {
+      console.warn(
+        "[CRO Partner pixel] Event delivery failed.",
+        error,
+      );
     });
+  };
+
+  CRO_PARTNER_EVENT_NAMES.forEach((eventName) => {
+    analytics.subscribe(eventName, sendEvent);
   });
+
+  analytics.subscribe(
+    CRO_PARTNER_EXPOSURE_EVENT,
+    sendEvent,
+  );
 });

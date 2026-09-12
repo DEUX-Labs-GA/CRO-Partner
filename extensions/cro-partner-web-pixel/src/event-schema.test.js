@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CRO_PARTNER_EVENT_NAMES,
+  CRO_PARTNER_EXPOSURE_EVENT,
   normalizeShopifyEvent,
 } from "./event-schema";
 
@@ -121,6 +122,26 @@ describe("CRO Partner Shopify event schema", () => {
       expect(JSON.stringify(payload)).not.toContain("do-not-copy@example.com");
     },
   );
+
+  it("normalizes a CRO Partner experiment exposure", () => {
+    const payload = normalizeShopifyEvent({
+      ...baseEvent,
+      name: CRO_PARTNER_EXPOSURE_EVENT,
+      customData: {
+        experimentId: "test-experiment-1",
+        variantId: "variant-a",
+      },
+    });
+
+    expect(payload).toMatchObject({
+      eventName: "cro_partner:experiment_exposure",
+      clientId: "client-1",
+      experiment: {
+        experimentId: "test-experiment-1",
+        variantId: "variant-a",
+      },
+    });
+  });
 
   it("returns a stable nullable shape for incomplete Shopify payloads", () => {
     const payload = normalizeShopifyEvent({ name: "product_viewed" });

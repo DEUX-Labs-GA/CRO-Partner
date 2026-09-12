@@ -67,6 +67,7 @@
 
     if (assignment.variantId === "control") {
       runtimeContext.activeExperiment.rendered = true;
+      publishExposure(assignment);
       return;
     }
 
@@ -142,7 +143,49 @@
     titleElement.dataset.croPartnerRender = renderKey;
     runtimeContext.activeExperiment.rendered = true;
 
+    publishExposure(assignment);
+
     return true;
+  }
+
+  function publishExposure(assignment) {
+    if (
+      !window.Shopify?.analytics ||
+      typeof window.Shopify.analytics.publish !== "function"
+    ) {
+      return;
+    }
+
+    const exposureKey =
+      `cro_partner_exposure:${assignment.experimentId}`;
+
+    try {
+      if (
+        window.sessionStorage.getItem(exposureKey) ===
+        assignment.variantId
+      ) {
+        return;
+      }
+    } catch {
+      // Continue even if session storage is unavailable.
+    }
+
+    window.Shopify.analytics.publish(
+      "cro_partner:experiment_exposure",
+      {
+        experimentId: assignment.experimentId,
+        variantId: assignment.variantId,
+      },
+    );
+
+    try {
+      window.sessionStorage.setItem(
+        exposureKey,
+        assignment.variantId,
+      );
+    } catch {
+      // Exposure was still published.
+    }
   }
 
   function findProductTitle() {

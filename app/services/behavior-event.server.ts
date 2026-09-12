@@ -5,6 +5,7 @@ const SUPPORTED_EVENTS = new Set([
   "product_added_to_cart",
   "checkout_started",
   "checkout_completed",
+  "cro_partner:experiment_exposure",
 ]);
 
 const MAX_EVENT_ID_LENGTH = 255;
@@ -40,6 +41,10 @@ type IncomingBehaviorEvent = {
     currency?: unknown;
     checkoutToken?: unknown;
     orderId?: unknown;
+  };
+  experiment?: {
+    experimentId?: unknown;
+    variantId?: unknown;
   };
 };
 
@@ -113,7 +118,18 @@ export function validateBehaviorEvent(input: IncomingBehaviorEvent) {
       input.commerce?.checkoutToken,
       MAX_IDENTIFIER_LENGTH,
     ),
-    orderId: asString(input.commerce?.orderId, MAX_IDENTIFIER_LENGTH),
+    orderId: asString(
+      input.commerce?.orderId,
+      MAX_IDENTIFIER_LENGTH,
+    ),
+    experimentId: asString(
+      input.experiment?.experimentId,
+      MAX_IDENTIFIER_LENGTH,
+    ),
+    experimentVariantId: asString(
+      input.experiment?.variantId,
+      MAX_IDENTIFIER_LENGTH,
+    ),
   };
 }
 
