@@ -10,6 +10,17 @@
   const VISITOR_COOKIE = "cro_partner_vid";
   const ASSIGNMENT_STORAGE_PREFIX = "cro_partner_assignment:";
 
+  const ACTIVE_EXPERIMENT = {
+    id: "test-experiment-1",
+    productId: "15273137996140",
+    variants: ["control", "variant-a"],
+    variantContent: {
+      "variant-a": {
+        title: "The Collection Snowboard: Liquid — Built to Flow",
+      },
+    },
+  };
+
   const productContext = readProductContext();
   const visitorId = getOrCreateVisitorId();
 
@@ -20,9 +31,139 @@
     visitorId,
     getAssignment,
     assignExperiment,
+    activeExperiment: null,
   };
 
   shopifyNamespace.croPartner = runtimeContext;
+
+  runActiveExperiment();
+
+  function runActiveExperiment() {
+    if (!productContext) {
+      return;
+    }
+
+    if (
+      String(productContext.id) !==
+      String(ACTIVE_EXPERIMENT.productId)
+    ) {
+      return;
+    }
+
+    const assignment = assignExperiment(
+      ACTIVE_EXPERIMENT.id,
+      ACTIVE_EXPERIMENT.variants,
+    );
+
+    if (!assignment) {
+      return;
+    }
+
+    runtimeContext.activeExperiment = {
+      experimentId: ACTIVE_EXPERIMENT.id,
+      assignment,
+      rendered: false,
+    };
+
+    if (assignment.variantId === "control") {
+      runtimeContext.activeExperiment.rendered = true;
+      return;
+    }
+
+    const variant =
+      ACTIVE_EXPERIMENT.variantContent[assignment.variantId];
+
+    if (!variant) {
+      return;
+    }
+
+    renderVariantWhenReady(assignment, variant);
+  }
+
+  function renderVariantWhenReady(assignment, variant) {
+    if (renderVariant(assignment, variant)) {
+      return;
+    }
+
+    const root =
+      document.querySelector("#MainContent") ||
+      document.querySelector("main") ||
+      document.body;
+
+    if (!root) {
+      return;
+    }
+
+    let observer = null;
+
+    const timeoutId = window.setTimeout(() => {
+      observer?.disconnect();
+    }, 5000);
+
+    observer = new MutationObserver(() => {
+      if (!renderVariant(assignment, variant)) {
+        return;
+      }
+
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
+    });
+
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  function renderVariant(assignment, variant) {
+    const titleElement = findProductTitle();
+
+    if (!titleElement) {
+      return false;
+    }
+
+    const renderKey =
+      `${assignment.experimentId}:${assignment.variantId}`;
+
+    if (titleElement.dataset.croPartnerRender === renderKey) {
+      runtimeContext.activeExperiment.rendered = true;
+      return true;
+    }
+
+    if (!titleElement.dataset.croPartnerOriginalText) {
+      titleElement.dataset.croPartnerOriginalText =
+        titleElement.textContent?.trim() ?? "";
+    }
+
+    if (typeof variant.title === "string") {
+      titleElement.textContent = variant.title;
+    }
+
+    titleElement.dataset.croPartnerRender = renderKey;
+    runtimeContext.activeExperiment.rendered = true;
+
+    return true;
+  }
+
+  function findProductTitle() {
+    const selectors = [
+      "h1.product__title",
+      ".product__title h1",
+      "h1.product-title",
+      "[data-product-title]",
+      "main h1",
+    ];
+
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+
+      if (element) {
+        return element;
+      }
+    }
+
+    return null;
+  }
 
   function getOrCreateVisitorId() {
     const existingVisitorId = readCookie(VISITOR_COOKIE);
