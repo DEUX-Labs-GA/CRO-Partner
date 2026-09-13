@@ -87,6 +87,22 @@ export default function ExperimentDetailPage() {
         )
       : null;
 
+  const controlVariantName =
+    experiment.variants.find(
+      (variant) => variant.isControl,
+    )?.name ?? "Control";
+
+  const treatmentVariantName =
+    experiment.variants.find(
+      (variant) => !variant.isControl,
+    )?.name ?? "Treatment";
+
+  const hasEnoughDirectionalData =
+    controlResult !== null &&
+    treatmentResult !== null &&
+    controlResult.visitors >= 30 &&
+    treatmentResult.visitors >= 30;
+
   return (
     <s-page heading={experiment.name}>
       <s-section heading="Experiment details">
@@ -187,19 +203,10 @@ export default function ExperimentDetailPage() {
                         }}
                       >
                         {variant.variantId === "control"
-                          ? "Control"
-                          : "Treatment"}
+                          ? controlVariantName
+                          : treatmentVariantName}
                       </div>
 
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#616161",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {variant.variantId}
-                      </div>
                     </div>
 
                     <div
@@ -270,10 +277,20 @@ export default function ExperimentDetailPage() {
             {controlResult && treatmentResult ? (
               <div
                 style={{
-                  border: "1px solid #b7d7c5",
+                  border:
+                    conversionLift !== null && conversionLift < 0
+                      ? "1px solid #e3b9b9"
+                      : conversionLift !== null && conversionLift > 0
+                        ? "1px solid #b7d7c5"
+                        : "1px solid #dcdcdc",
                   borderRadius: "12px",
                   padding: "16px",
-                  background: "#f2faf5",
+                  background:
+                    conversionLift !== null && conversionLift < 0
+                      ? "#fff6f6"
+                      : conversionLift !== null && conversionLift > 0
+                        ? "#f2faf5"
+                        : "#f7f7f7",
                   marginBottom: "16px",
                 }}
               >
@@ -283,7 +300,7 @@ export default function ExperimentDetailPage() {
                     marginBottom: "6px",
                   }}
                 >
-                  Treatment lift
+                  Treatment lift vs. control
                 </div>
 
                 <div>
@@ -293,6 +310,19 @@ export default function ExperimentDetailPage() {
                       ? "Not available yet"
                       : formatSignedPercent(conversionLift)}
                   </strong>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "10px",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                    color: "#4a4a4a",
+                  }}
+                >
+                  {hasEnoughDirectionalData
+                    ? "Directional comparison available. Statistical significance has not yet been evaluated."
+                    : "Early result only — there is not enough traffic yet to treat this lift as a reliable experiment conclusion."}
                 </div>
               </div>
             ) : (
