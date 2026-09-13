@@ -49,6 +49,44 @@ export default function ExperimentDetailPage() {
     useLoaderData<typeof loader>();
   const primaryMetric = experiment.metrics[0];
 
+  const totalPurchases =
+    results?.variants.reduce(
+      (total, variant) => total + variant.purchases,
+      0,
+    ) ?? 0;
+
+  const totalRevenue =
+    results?.variants.reduce(
+      (total, variant) => total + variant.revenue,
+      0,
+    ) ?? 0;
+
+  const overallConversionRate =
+    results && results.totalExposedVisitors > 0
+      ? totalPurchases / results.totalExposedVisitors
+      : null;
+
+  const controlResult =
+    results?.variants.find(
+      (variant) => variant.variantId === "control",
+    ) ?? null;
+
+  const treatmentResult =
+    results?.variants.find(
+      (variant) => variant.variantId !== "control",
+    ) ?? null;
+
+  const conversionLift =
+    controlResult?.conversionRate &&
+    treatmentResult?.conversionRate !== null &&
+    treatmentResult?.conversionRate !== undefined
+      ? (
+          (treatmentResult.conversionRate -
+            controlResult.conversionRate) /
+          controlResult.conversionRate
+        )
+      : null;
+
   return (
     <s-page heading={experiment.name}>
       <s-section heading="Experiment details">
@@ -80,74 +118,225 @@ export default function ExperimentDetailPage() {
           </s-paragraph>
         ) : (
           <>
-            <s-paragraph>
-              Exposed visitors: {results.totalExposedVisitors}
-            </s-paragraph>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "12px",
+                marginBottom: "24px",
+              }}
+            >
+              <MetricCard
+                label="Exposed visitors"
+                value={results.totalExposedVisitors.toLocaleString()}
+              />
 
-            {results.variants.map((variant) => (
-              <s-section
-                key={variant.variantId}
-                heading={
-                  variant.variantId === "control"
-                    ? "Control"
-                    : variant.variantId
-                }
+              <MetricCard
+                label="Purchases"
+                value={totalPurchases.toLocaleString()}
+              />
+
+              <MetricCard
+                label="Conversion rate"
+                value={formatPercent(overallConversionRate)}
+              />
+
+              <MetricCard
+                label="Attributed revenue"
+                value={formatCurrency(
+                  totalRevenue,
+                  results.currency,
+                )}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "16px",
+                marginBottom: "20px",
+              }}
+            >
+              {results.variants.map((variant) => (
+                <div
+                  key={variant.variantId}
+                  style={{
+                    border: "1px solid #dcdcdc",
+                    borderRadius: "12px",
+                    padding: "18px",
+                    background: "#ffffff",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: 650,
+                        }}
+                      >
+                        {variant.variantId === "control"
+                          ? "Control"
+                          : "Treatment"}
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#616161",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {variant.variantId}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        borderRadius: "999px",
+                        padding: "4px 9px",
+                        background:
+                          variant.variantId === "control"
+                            ? "#f1f1f1"
+                            : "#eaf5ff",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {variant.visitors} visitor
+                      {variant.visitors === 1 ? "" : "s"}
+                    </div>
+                  </div>
+
+                  <ResultRow
+                    label="Added to cart"
+                    value={variant.addedToCart.toLocaleString()}
+                  />
+
+                  <ResultRow
+                    label="Checkout started"
+                    value={variant.checkoutStarted.toLocaleString()}
+                  />
+
+                  <ResultRow
+                    label="Purchases"
+                    value={variant.purchases.toLocaleString()}
+                  />
+
+                  <ResultRow
+                    label="Conversion rate"
+                    value={formatPercent(
+                      variant.conversionRate,
+                    )}
+                    emphasize
+                  />
+
+                  <ResultRow
+                    label="Revenue"
+                    value={formatCurrency(
+                      variant.revenue,
+                      results.currency,
+                    )}
+                    emphasize
+                  />
+
+                  <ResultRow
+                    label="Revenue / visitor"
+                    value={
+                      variant.revenuePerVisitor === null
+                        ? "—"
+                        : formatCurrency(
+                            variant.revenuePerVisitor,
+                            results.currency,
+                          )
+                    }
+                    emphasize
+                  />
+                </div>
+              ))}
+            </div>
+
+            {controlResult && treatmentResult ? (
+              <div
+                style={{
+                  border: "1px solid #b7d7c5",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  background: "#f2faf5",
+                  marginBottom: "16px",
+                }}
               >
-                <s-paragraph>
-                  Visitors: {variant.visitors}
-                </s-paragraph>
+                <div
+                  style={{
+                    fontWeight: 650,
+                    marginBottom: "6px",
+                  }}
+                >
+                  Treatment lift
+                </div>
 
-                <s-paragraph>
-                  Added to cart: {variant.addedToCart}
-                </s-paragraph>
-
-                <s-paragraph>
-                  Checkout started: {variant.checkoutStarted}
-                </s-paragraph>
-
-                <s-paragraph>
-                  Purchases: {variant.purchases}
-                </s-paragraph>
-
-                <s-paragraph>
-                  Conversion rate:{" "}
-                  {variant.conversionRate === null
-                    ? "—"
-                    : `${(variant.conversionRate * 100).toFixed(2)}%`}
-                </s-paragraph>
-
-                <s-paragraph>
-                  Revenue:{" "}
-                  {new Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: results.currency ?? "USD",
-                  }).format(variant.revenue)}
-                </s-paragraph>
-
-                <s-paragraph>
-                  Revenue per visitor:{" "}
-                  {variant.revenuePerVisitor === null
-                    ? "—"
-                    : new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: results.currency ?? "USD",
-                      }).format(variant.revenuePerVisitor)}
-                </s-paragraph>
-              </s-section>
-            ))}
+                <div>
+                  Conversion-rate lift:{" "}
+                  <strong>
+                    {conversionLift === null
+                      ? "Not available yet"
+                      : formatSignedPercent(conversionLift)}
+                  </strong>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  border: "1px solid #dcdcdc",
+                  borderRadius: "12px",
+                  padding: "14px 16px",
+                  background: "#f7f7f7",
+                  marginBottom: "16px",
+                  color: "#4a4a4a",
+                }}
+              >
+                Lift will appear once both control and treatment
+                have recorded exposures.
+              </div>
+            )}
 
             {results.excludedAmbiguousVisitors > 0 ? (
-              <s-paragraph>
+              <div
+                style={{
+                  marginBottom: "12px",
+                  fontSize: "13px",
+                }}
+              >
                 Excluded ambiguous visitors:{" "}
                 {results.excludedAmbiguousVisitors}
-              </s-paragraph>
+              </div>
             ) : null}
 
-            <s-paragraph>
-              Results currently use visitor-path attribution: commerce
-              activity occurring after experiment exposure is attributed
-              using the same Shopify client ID.
-            </s-paragraph>
+            <div
+              style={{
+                borderTop: "1px solid #ebebeb",
+                paddingTop: "12px",
+                fontSize: "12px",
+                lineHeight: 1.5,
+                color: "#616161",
+              }}
+            >
+              Attribution note: commerce activity occurring after
+              experiment exposure is currently attributed using the
+              same Shopify client ID. This is visitor-path
+              attribution.
+            </div>
           </>
         )}
       </s-section>
@@ -186,6 +375,114 @@ export default function ExperimentDetailPage() {
       </s-section>
     </s-page>
   );
+}
+
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid #dcdcdc",
+        borderRadius: "12px",
+        padding: "16px",
+        background: "#ffffff",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "12px",
+          color: "#616161",
+          marginBottom: "6px",
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          fontSize: "24px",
+          lineHeight: 1.2,
+          fontWeight: 650,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ResultRow({
+  label,
+  value,
+  emphasize = false,
+}: {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        gap: "16px",
+        padding: "9px 0",
+        borderTop: "1px solid #eeeeee",
+      }}
+    >
+      <span
+        style={{
+          color: "#616161",
+        }}
+      >
+        {label}
+      </span>
+
+      <span
+        style={{
+          fontWeight: emphasize ? 650 : 500,
+          textAlign: "right",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function formatCurrency(
+  value: number,
+  currency: string | null,
+) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency ?? "USD",
+  }).format(value);
+}
+
+function formatPercent(value: number | null) {
+  return value === null
+    ? "—"
+    : `${(value * 100).toFixed(2)}%`;
+}
+
+function formatSignedPercent(value: number) {
+  const formatted = `${Math.abs(value * 100).toFixed(2)}%`;
+
+  if (value > 0) {
+    return `+${formatted}`;
+  }
+
+  if (value < 0) {
+    return `-${formatted}`;
+  }
+
+  return "0.00%";
 }
 
 export const headers: HeadersFunction = (headersArgs) => {

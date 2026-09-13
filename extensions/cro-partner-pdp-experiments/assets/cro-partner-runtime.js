@@ -148,14 +148,10 @@
     return true;
   }
 
-  function publishExposure(assignment) {
-    if (
-      !window.Shopify?.analytics ||
-      typeof window.Shopify.analytics.publish !== "function"
-    ) {
-      return;
-    }
-
+  function publishExposure(
+    assignment,
+    attempt = 0,
+  ) {
     const exposureKey =
       `cro_partner_exposure:${assignment.experimentId}`;
 
@@ -168,6 +164,22 @@
       }
     } catch {
       // Continue even if session storage is unavailable.
+    }
+
+    if (
+      !window.Shopify?.analytics ||
+      typeof window.Shopify.analytics.publish !== "function"
+    ) {
+      if (attempt < 50) {
+        window.setTimeout(() => {
+          publishExposure(
+            assignment,
+            attempt + 1,
+          );
+        }, 100);
+      }
+
+      return;
     }
 
     window.Shopify.analytics.publish(
