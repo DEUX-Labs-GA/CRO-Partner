@@ -35,9 +35,11 @@ model Session {
 
 enum ExperimentStatus {
   DRAFT
+  READY
   RUNNING
   PAUSED
   COMPLETED
+  ARCHIVED
 }
 
 enum MetricType {

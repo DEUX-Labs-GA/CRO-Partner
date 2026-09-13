@@ -1,5 +1,9 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
+import { Form, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -8,6 +12,62 @@ import {
   loadStoreBaseline,
 } from "../services/experiment-pre-analysis.server";
 import { loadExperimentResults } from "../services/experiment-results.server";
+import {
+  canTransitionExperiment,
+  getAllowedExperimentTransitions,
+  isExperimentStatus,
+} from "../services/experiment-lifecycle";
+
+export const action = async ({
+  request,
+  params,
+}: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const nextStatus = formData.get("status");
+
+  if (!isExperimentStatus(nextStatus)) {
+    throw new Response("Invalid experiment status", {
+      status: 400,
+    });
+  }
+
+  const experiment = await prisma.experiment.findFirst({
+    where: {
+      id: params.id,
+      shop: session.shop,
+    },
+  });
+
+  if (!experiment) {
+    throw new Response("Experiment not found", {
+      status: 404,
+    });
+  }
+
+  if (
+    !canTransitionExperiment(
+      experiment.status,
+      nextStatus,
+    )
+  ) {
+    throw new Response(
+      `Cannot move experiment from ${experiment.status} to ${nextStatus}`,
+      { status: 400 },
+    );
+  }
+
+  await prisma.experiment.update({
+    where: {
+      id: experiment.id,
+    },
+    data: {
+      status: nextStatus,
+    },
+  });
+
+  return { ok: true };
+};
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -48,6 +108,8 @@ export default function ExperimentDetailPage() {
   const { experiment, preAnalysis, results } =
     useLoaderData<typeof loader>();
   const primaryMetric = experiment.metrics[0];
+  const allowedTransitions =
+    getAllowedExperimentTransitions(experiment.status);
 
   const totalPurchases =
     results?.variants.reduce(
@@ -107,7 +169,44 @@ export default function ExperimentDetailPage() {
     <s-page heading={experiment.name}>
       <s-section heading="Experiment details">
         <s-paragraph>{experiment.hypothesis}</s-paragraph>
-        <s-paragraph>Status: {experiment.status}</s-paragraph>
+        <s-paragraph>Status: {formatStatus(experiment.status)}</s-paragraph>
+
+        {allowedTransitions.length > 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              margin: "12px 0 16px",
+            }}
+          >
+            {allowedTransitions.map((status) => (
+              <Form method="post" key={status}>
+                <button
+                  type="submit"
+                  name="status"
+                  value={status}
+                  style={{
+                    appearance: "none",
+                    border: "1px solid #8a8a8a",
+                    borderRadius: "8px",
+                    background: "#ffffff",
+                    padding: "8px 12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {getTransitionLabel(
+                    experiment.status,
+                    status,
+                  )}
+                </button>
+              </Form>
+            ))}
+          </div>
+        ) : null}
+
         <s-paragraph>Created: {experiment.createdAt.toLocaleDateString()}</s-paragraph>
         <s-paragraph>
           Primary metric: {primaryMetric?.name ?? "Not defined"}
@@ -483,6 +582,49 @@ function ResultRow({
       </span>
     </div>
   );
+}
+
+function formatStatus(status: string) {
+  return status
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_, prefix, letter) =>
+      `${prefix ? " " : ""}${letter.toUpperCase()}`,
+    );
+}
+
+function getTransitionLabel(
+  currentStatus: string,
+  nextStatus: string,
+) {
+  if (currentStatus === "DRAFT" && nextStatus === "READY") {
+    return "Mark ready";
+  }
+
+  if (currentStatus === "READY" && nextStatus === "RUNNING") {
+    return "Start experiment";
+  }
+
+  if (currentStatus === "READY" && nextStatus === "DRAFT") {
+    return "Return to draft";
+  }
+
+  if (currentStatus === "RUNNING" && nextStatus === "PAUSED") {
+    return "Pause experiment";
+  }
+
+  if (currentStatus === "PAUSED" && nextStatus === "RUNNING") {
+    return "Resume experiment";
+  }
+
+  if (nextStatus === "COMPLETED") {
+    return "Complete experiment";
+  }
+
+  if (nextStatus === "ARCHIVED") {
+    return "Archive experiment";
+  }
+
+  return `Move to ${formatStatus(nextStatus)}`;
 }
 
 function formatCurrency(

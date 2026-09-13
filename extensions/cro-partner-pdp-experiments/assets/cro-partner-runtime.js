@@ -10,7 +10,7 @@
   const VISITOR_COOKIE = "cro_partner_vid";
   const ASSIGNMENT_STORAGE_PREFIX = "cro_partner_assignment:";
 
-  const ACTIVE_EXPERIMENT = {
+  const EXPERIMENT_CONFIG = {
     id: "test-experiment-1",
     productId: "15273137996140",
     variants: ["control", "variant-a"],
@@ -36,7 +36,45 @@
 
   shopifyNamespace.croPartner = runtimeContext;
 
-  runActiveExperiment();
+  loadActiveExperiment();
+
+  async function loadActiveExperiment() {
+    try {
+      const response = await fetch(
+        `/apps/cro-partner?ts=${Date.now()}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "Cache-Control": "no-cache",
+          },
+          credentials: "same-origin",
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = await response.json();
+      const activeExperiment = payload?.activeExperiment;
+
+      if (
+        !activeExperiment ||
+        activeExperiment.status !== "RUNNING" ||
+        activeExperiment.trackingKey !== EXPERIMENT_CONFIG.id
+      ) {
+        return;
+      }
+
+      runActiveExperiment();
+    } catch {
+      /*
+       * Fail closed. If CRO Partner cannot confirm that the
+       * experiment is running, do not render an experiment.
+       */
+    }
+  }
 
   function runActiveExperiment() {
     if (!productContext) {
@@ -45,14 +83,14 @@
 
     if (
       String(productContext.id) !==
-      String(ACTIVE_EXPERIMENT.productId)
+      String(EXPERIMENT_CONFIG.productId)
     ) {
       return;
     }
 
     const assignment = assignExperiment(
-      ACTIVE_EXPERIMENT.id,
-      ACTIVE_EXPERIMENT.variants,
+      EXPERIMENT_CONFIG.id,
+      EXPERIMENT_CONFIG.variants,
     );
 
     if (!assignment) {
@@ -60,7 +98,7 @@
     }
 
     runtimeContext.activeExperiment = {
-      experimentId: ACTIVE_EXPERIMENT.id,
+      experimentId: EXPERIMENT_CONFIG.id,
       assignment,
       rendered: false,
     };
@@ -72,7 +110,7 @@
     }
 
     const variant =
-      ACTIVE_EXPERIMENT.variantContent[assignment.variantId];
+      EXPERIMENT_CONFIG.variantContent[assignment.variantId];
 
     if (!variant) {
       return;
