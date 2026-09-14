@@ -2,6 +2,12 @@ import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } =
     await authenticate.public.appProxy(request);
@@ -13,11 +19,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
       {
         status: 401,
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
+        headers: NO_CACHE_HEADERS,
       },
     );
   }
@@ -27,6 +29,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: session.shop,
       status: "RUNNING",
       trackingKey: {
+        not: null,
+      },
+      targetProductId: {
         not: null,
       },
     },
@@ -48,11 +53,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         activeExperiment: null,
       },
       {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
+        headers: NO_CACHE_HEADERS,
+      },
+    );
+  }
+
+  const controlVariant =
+    experiment.variants.find(
+      (variant) => variant.isControl,
+    ) ?? null;
+
+  const treatmentVariant =
+    experiment.variants.find(
+      (variant) => !variant.isControl,
+    ) ?? null;
+
+  if (!controlVariant || !treatmentVariant) {
+    return Response.json(
+      {
+        activeExperiment: null,
+      },
+      {
+        headers: NO_CACHE_HEADERS,
       },
     );
   }
@@ -63,19 +85,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         experimentId: experiment.id,
         trackingKey: experiment.trackingKey,
         status: experiment.status,
-        variants: experiment.variants.map((variant) => ({
-          id: variant.id,
-          name: variant.name,
-          isControl: variant.isControl,
-        })),
+        productId: experiment.targetProductId,
+        variants: [
+          {
+            id: "control",
+            databaseId: controlVariant.id,
+            name: controlVariant.name,
+            isControl: true,
+            titleOverride: null,
+          },
+          {
+            id: "variant-a",
+            databaseId: treatmentVariant.id,
+            name: treatmentVariant.name,
+            isControl: false,
+            titleOverride: treatmentVariant.titleOverride,
+          },
+        ],
       },
     },
     {
-      headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
+      headers: NO_CACHE_HEADERS,
     },
   );
 };

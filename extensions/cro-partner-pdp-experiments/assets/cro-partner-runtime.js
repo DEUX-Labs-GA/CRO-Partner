@@ -10,17 +10,6 @@
   const VISITOR_COOKIE = "cro_partner_vid";
   const ASSIGNMENT_STORAGE_PREFIX = "cro_partner_assignment:";
 
-  const EXPERIMENT_CONFIG = {
-    id: "test-experiment-1",
-    productId: "15273137996140",
-    variants: ["control", "variant-a"],
-    variantContent: {
-      "variant-a": {
-        title: "The Collection Snowboard: Liquid — Built to Flow",
-      },
-    },
-  };
-
   const productContext = readProductContext();
   const visitorId = getOrCreateVisitorId();
 
@@ -62,12 +51,42 @@
       if (
         !activeExperiment ||
         activeExperiment.status !== "RUNNING" ||
-        activeExperiment.trackingKey !== EXPERIMENT_CONFIG.id
+        !activeExperiment.trackingKey ||
+        !activeExperiment.productId ||
+        !Array.isArray(activeExperiment.variants)
       ) {
         return;
       }
 
-      runActiveExperiment();
+      const controlVariant =
+        activeExperiment.variants.find(
+          (variant) => variant.isControl,
+        );
+
+      const treatmentVariant =
+        activeExperiment.variants.find(
+          (variant) => !variant.isControl,
+        );
+
+      if (!controlVariant || !treatmentVariant) {
+        return;
+      }
+
+      const experimentConfig = {
+        id: activeExperiment.trackingKey,
+        productId: activeExperiment.productId,
+        variants: [
+          controlVariant.id,
+          treatmentVariant.id,
+        ],
+        variantContent: {
+          [treatmentVariant.id]: {
+            title: treatmentVariant.titleOverride,
+          },
+        },
+      };
+
+      runActiveExperiment(experimentConfig);
     } catch {
       /*
        * Fail closed. If CRO Partner cannot confirm that the
@@ -76,21 +95,21 @@
     }
   }
 
-  function runActiveExperiment() {
+  function runActiveExperiment(experimentConfig) {
     if (!productContext) {
       return;
     }
 
     if (
       String(productContext.id) !==
-      String(EXPERIMENT_CONFIG.productId)
+      String(experimentConfig.productId)
     ) {
       return;
     }
 
     const assignment = assignExperiment(
-      EXPERIMENT_CONFIG.id,
-      EXPERIMENT_CONFIG.variants,
+      experimentConfig.id,
+      experimentConfig.variants,
     );
 
     if (!assignment) {
@@ -98,7 +117,7 @@
     }
 
     runtimeContext.activeExperiment = {
-      experimentId: EXPERIMENT_CONFIG.id,
+      experimentId: experimentConfig.id,
       assignment,
       rendered: false,
     };
@@ -110,7 +129,7 @@
     }
 
     const variant =
-      EXPERIMENT_CONFIG.variantContent[assignment.variantId];
+      experimentConfig.variantContent[assignment.variantId];
 
     if (!variant) {
       return;

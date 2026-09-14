@@ -66,6 +66,7 @@ model Experiment {
   statisticalPower        Float            @default(0.8)
   status                  ExperimentStatus @default(DRAFT)
   trackingKey             String?
+  targetProductId         String?
   variants                Variant[]
   metrics                 Metric[]
   createdAt               DateTime         @default(now())
@@ -77,9 +78,10 @@ model Experiment {
 model Variant {
   id           String     @id @default(cuid())
   experimentId String
-  name         String
-  isControl    Boolean    @default(false)
-  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  name          String
+  isControl     Boolean    @default(false)
+  titleOverride String?
+  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
