@@ -37,16 +37,46 @@ export async function loadExperimentResults(
   shop: string,
   experimentId: string,
 ) {
+  /*
+   * Start with visitors who were exposed to this experiment.
+   * Then load all experiment exposures for those same clients so
+   * a later experiment can close this experiment's attribution window.
+   */
+  const targetExposures = await prisma.behaviorEvent.findMany({
+    where: {
+      shop,
+      eventName: EXPOSURE_EVENT,
+      experimentId,
+      clientId: {
+        not: null,
+      },
+    },
+    select: {
+      clientId: true,
+    },
+  });
+
+  const clientIds = [
+    ...new Set(
+      targetExposures
+        .map((event) => event.clientId)
+        .filter((clientId): clientId is string => Boolean(clientId)),
+    ),
+  ];
+
+  if (clientIds.length === 0) {
+    return summarizeExperimentResults([], experimentId);
+  }
+
   const events = await prisma.behaviorEvent.findMany({
     where: {
       shop,
       clientId: {
-        not: null,
+        in: clientIds,
       },
       OR: [
         {
           eventName: EXPOSURE_EVENT,
-          experimentId,
         },
         {
           eventName: {
@@ -129,6 +159,37 @@ export function summarizeExperimentResults(
     exposureByClient.delete(clientId);
   }
 
+  /*
+   * A visitor belongs to this experiment only until they are exposed
+   * to a different experiment. That later exposure closes the current
+   * experiment's attribution window.
+   */
+  const nextExperimentExposureByClient = new Map<string, Date>();
+
+  for (const event of sortedEvents) {
+    if (
+      event.eventName !== EXPOSURE_EVENT ||
+      !event.clientId ||
+      !event.experimentId ||
+      event.experimentId === experimentId
+    ) {
+      continue;
+    }
+
+    const exposure = exposureByClient.get(event.clientId);
+
+    if (!exposure || event.occurredAt <= exposure.occurredAt) {
+      continue;
+    }
+
+    if (!nextExperimentExposureByClient.has(event.clientId)) {
+      nextExperimentExposureByClient.set(
+        event.clientId,
+        event.occurredAt,
+      );
+    }
+  }
+
   const outcomesByClient = new Map<
     string,
     {
@@ -162,6 +223,16 @@ export function summarizeExperimentResults(
      * was actually exposed to the experiment.
      */
     if (event.occurredAt < exposure.occurredAt) {
+      continue;
+    }
+
+    const nextExperimentExposure =
+      nextExperimentExposureByClient.get(event.clientId);
+
+    if (
+      nextExperimentExposure &&
+      event.occurredAt >= nextExperimentExposure
+    ) {
       continue;
     }
 

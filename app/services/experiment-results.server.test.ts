@@ -165,4 +165,82 @@ describe("experiment results", () => {
     expect(result.excludedAmbiguousVisitors).toBe(1);
     expect(result.variants).toEqual([]);
   });
+  it("stops attribution when a client enters a different experiment", () => {
+    const result = summarizeExperimentResults(
+      [
+        event({
+          eventId: "old-exposure",
+          eventName: "cro_partner:experiment_exposure",
+          experimentId: "experiment-1",
+          experimentVariantId: "variant-a",
+          occurredAt: new Date("2026-09-12T20:00:00.000Z"),
+        }),
+        event({
+          eventId: "old-purchase",
+          eventName: "checkout_completed",
+          orderId: "order-old",
+          value: 100,
+          currency: "USD",
+          occurredAt: new Date("2026-09-12T20:01:00.000Z"),
+        }),
+        event({
+          eventId: "new-exposure",
+          eventName: "cro_partner:experiment_exposure",
+          experimentId: "experiment-2",
+          experimentVariantId: "variant-a",
+          occurredAt: new Date("2026-09-12T20:02:00.000Z"),
+        }),
+        event({
+          eventId: "new-purchase",
+          eventName: "checkout_completed",
+          orderId: "order-new",
+          value: 600,
+          currency: "USD",
+          occurredAt: new Date("2026-09-12T20:03:00.000Z"),
+        }),
+      ],
+      "experiment-1",
+    );
+
+    expect(result.variants[0]).toMatchObject({
+      purchases: 1,
+      revenue: 100,
+    });
+  });
+
+  it("attributes outcomes after exposure to the newer experiment", () => {
+    const result = summarizeExperimentResults(
+      [
+        event({
+          eventId: "old-exposure",
+          eventName: "cro_partner:experiment_exposure",
+          experimentId: "experiment-1",
+          experimentVariantId: "variant-a",
+          occurredAt: new Date("2026-09-12T20:00:00.000Z"),
+        }),
+        event({
+          eventId: "new-exposure",
+          eventName: "cro_partner:experiment_exposure",
+          experimentId: "experiment-2",
+          experimentVariantId: "variant-a",
+          occurredAt: new Date("2026-09-12T20:02:00.000Z"),
+        }),
+        event({
+          eventId: "new-purchase",
+          eventName: "checkout_completed",
+          orderId: "order-new",
+          value: 600,
+          currency: "USD",
+          occurredAt: new Date("2026-09-12T20:03:00.000Z"),
+        }),
+      ],
+      "experiment-2",
+    );
+
+    expect(result.variants[0]).toMatchObject({
+      purchases: 1,
+      revenue: 600,
+    });
+  });
+
 });
