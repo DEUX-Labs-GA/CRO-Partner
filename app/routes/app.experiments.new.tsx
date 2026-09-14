@@ -1,56 +1,128 @@
+import { randomUUID } from "node:crypto";
 import { MetricType } from "@prisma/client";
-import { useActionData, useSubmit } from "react-router";
-import type { ActionFunctionArgs, HeadersFunction } from "react-router";
+import {
+  useActionData,
+  useLoaderData,
+  useSubmit,
+} from "react-router";
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
+import { loadTrackedProducts } from "../services/tracked-products.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+
+  const trackedProducts = await loadTrackedProducts(session.shop);
+
+  return {
+    trackedProducts,
+  };
+};
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  console.log("CREATE ACTION START", {
-    method: request.method,
-    url: request.url,
-    contentType: request.headers.get("content-type"),
-  });
-
   try {
     const auth = await authenticate.admin(request);
-
-    console.log("CREATE AUTH OK", {
-      shop: auth.session.shop,
-    });
-
     const formData = await request.formData();
 
-    console.log("CREATE FORM DATA", {
-      keys: Array.from(formData.keys()),
-    });
-
     const name = String(formData.get("name") || "").trim();
-    const hypothesis = String(formData.get("hypothesis") || "").trim();
-    const metricName = String(formData.get("metricName") || "").trim();
-    const metricType = String(formData.get("metricType") || "");
-    const controlName = String(formData.get("controlName") || "").trim();
-    const treatmentName = String(formData.get("treatmentName") || "").trim();
-    const baselineConversionRate = Number(formData.get("baselineConversionRate")) / 100;
-    const minimumDetectableEffect = Number(formData.get("minimumDetectableEffect")) / 100;
-    const significanceLevel = Number(formData.get("significanceLevel")) / 100;
-    const statisticalPower = Number(formData.get("statisticalPower")) / 100;
+    const hypothesis = String(
+      formData.get("hypothesis") || "",
+    ).trim();
+    const metricName = String(
+      formData.get("metricName") || "",
+    ).trim();
+    const metricType = String(
+      formData.get("metricType") || "",
+    );
+    const targetProductId = String(
+      formData.get("targetProductId") || "",
+    ).trim();
+    const controlName = String(
+      formData.get("controlName") || "",
+    ).trim();
+    const treatmentName = String(
+      formData.get("treatmentName") || "",
+    ).trim();
+    const treatmentTitle = String(
+      formData.get("treatmentTitle") || "",
+    ).trim();
 
-    if (!name || !hypothesis || !metricName || !controlName || !treatmentName) {
-      return { error: "Complete every field before saving the experiment." };
-    }
+    const baselineConversionRate =
+      Number(formData.get("baselineConversionRate")) / 100;
+    const minimumDetectableEffect =
+      Number(formData.get("minimumDetectableEffect")) / 100;
+    const significanceLevel =
+      Number(formData.get("significanceLevel")) / 100;
+    const statisticalPower =
+      Number(formData.get("statisticalPower")) / 100;
 
-    if (!Object.values(MetricType).includes(metricType as MetricType)) {
-      return { error: "Select a valid primary metric type." };
+    if (
+      !name ||
+      !hypothesis ||
+      !metricName ||
+      !targetProductId ||
+      !controlName ||
+      !treatmentName ||
+      !treatmentTitle
+    ) {
+      return {
+        error:
+          "Complete every field before saving the experiment.",
+      };
     }
 
     if (
-      !Number.isFinite(baselineConversionRate) || baselineConversionRate <= 0 || baselineConversionRate >= 1 ||
-      !Number.isFinite(minimumDetectableEffect) || minimumDetectableEffect <= 0 ||
-      !Number.isFinite(significanceLevel) || significanceLevel <= 0 || significanceLevel >= 1 ||
-      !Number.isFinite(statisticalPower) || statisticalPower <= 0 || statisticalPower >= 1
+      !Object.values(MetricType).includes(
+        metricType as MetricType,
+      )
     ) {
-      return { error: "Enter valid feasibility assumptions as percentages." };
+      return {
+        error: "Select a valid primary metric type.",
+      };
+    }
+
+    if (
+      !Number.isFinite(baselineConversionRate) ||
+      baselineConversionRate <= 0 ||
+      baselineConversionRate >= 1 ||
+      !Number.isFinite(minimumDetectableEffect) ||
+      minimumDetectableEffect <= 0 ||
+      !Number.isFinite(significanceLevel) ||
+      significanceLevel <= 0 ||
+      significanceLevel >= 1 ||
+      !Number.isFinite(statisticalPower) ||
+      statisticalPower <= 0 ||
+      statisticalPower >= 1
+    ) {
+      return {
+        error:
+          "Enter valid feasibility assumptions as percentages.",
+      };
+    }
+
+    /*
+     * Only allow products CRO Partner has actually observed
+     * in this shop's product-view event stream.
+     */
+    const trackedProducts = await loadTrackedProducts(
+      auth.session.shop,
+    );
+
+    const targetProduct = trackedProducts.find(
+      (product) => product.productId === targetProductId,
+    );
+
+    if (!targetProduct) {
+      return {
+        error:
+          "Select a valid tracked product for this experiment.",
+      };
     }
 
     const experiment = await prisma.experiment.create({
@@ -58,14 +130,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         shop: auth.session.shop,
         name,
         hypothesis,
+        trackingKey: `experiment-${randomUUID()}`,
+        targetProductId,
         baselineConversionRate,
         minimumDetectableEffect,
         significanceLevel,
         statisticalPower,
         variants: {
           create: [
-            { name: controlName, isControl: true },
-            { name: treatmentName, isControl: false },
+            {
+              name: controlName,
+              isControl: true,
+              titleOverride: null,
+            },
+            {
+              name: treatmentName,
+              isControl: false,
+              titleOverride: treatmentTitle,
+            },
           ],
         },
         metrics: {
@@ -78,9 +160,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    console.log("CREATE SUCCESS", experiment.id);
-
-    return auth.redirect(`/app/experiments/${experiment.id}`);
+    return auth.redirect(
+      `/app/experiments/${experiment.id}`,
+    );
   } catch (error) {
     console.error("CREATE ACTION ERROR", error);
     throw error;
@@ -88,6 +170,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function NewExperiment() {
+  const { trackedProducts } =
+    useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
 
@@ -95,13 +179,26 @@ export default function NewExperiment() {
     <s-page heading="Create experiment">
       <s-section heading="Experiment details">
         {actionData?.error ? (
-          <p style={{ color: "red" }}>{actionData.error}</p>
+          <p style={{ color: "red" }}>
+            {actionData.error}
+          </p>
         ) : null}
+
+        {trackedProducts.length === 0 ? (
+          <p>
+            No tracked products are available yet. Visit a
+            product page on the storefront so CRO Partner can
+            observe it before creating an experiment.
+          </p>
+        ) : null}
+
         <form
           onSubmit={(event) => {
             event.preventDefault();
 
-            const formData = new FormData(event.currentTarget);
+            const formData = new FormData(
+              event.currentTarget,
+            );
 
             submit(formData, {
               method: "post",
@@ -121,34 +218,80 @@ export default function NewExperiment() {
             required
           />
 
+          <s-select
+            label="Target product"
+            name="targetProductId"
+            required
+          >
+            <s-option value="">
+              Select a product
+            </s-option>
+
+            {trackedProducts.map((product) => (
+              <s-option
+                key={product.productId}
+                value={product.productId}
+              >
+                {product.label}
+              </s-option>
+            ))}
+          </s-select>
+
           <s-text-field
             label="Primary metric name"
             name="metricName"
             required
           />
 
-<s-select
-  label="Primary metric type"
-  name="metricType"
-  required
->
-  <s-option value="CONVERSION_RATE">Conversion rate</s-option>
-  <s-option value="REVENUE">Revenue</s-option>
-  <s-option value="AVERAGE_ORDER_VALUE">Average order value</s-option>
-  <s-option value="CUSTOM">Custom</s-option>
-</s-select>
+          <s-select
+            label="Primary metric type"
+            name="metricType"
+            required
+          >
+            <s-option value="CONVERSION_RATE">
+              Conversion rate
+            </s-option>
+            <s-option value="REVENUE">
+              Revenue
+            </s-option>
+            <s-option value="AVERAGE_ORDER_VALUE">
+              Average order value
+            </s-option>
+            <s-option value="CUSTOM">
+              Custom
+            </s-option>
+          </s-select>
 
           <s-text-field
             label="Control variant name"
             name="controlName"
+            value="Original product title"
             required
           />
 
           <s-text-field
             label="Treatment variant name"
             name="treatmentName"
+            value="Treatment product title"
             required
           />
+
+          <s-text-field
+            label="Treatment product title"
+            name="treatmentTitle"
+            required
+          />
+
+          <p
+            style={{
+              margin: "8px 0 18px",
+              fontSize: "13px",
+              color: "#616161",
+            }}
+          >
+            Control keeps the product's original title.
+            Treatment replaces it with the title entered above.
+          </p>
 
           <s-number-field
             label="Baseline conversion rate (%) - merchant-provided"
@@ -189,13 +332,20 @@ export default function NewExperiment() {
             required
           />
 
-          <button type="submit">Save experiment</button>
+          <button
+            type="submit"
+            disabled={trackedProducts.length === 0}
+          >
+            Save experiment
+          </button>
         </form>
       </s-section>
     </s-page>
   );
 }
 
-export const headers: HeadersFunction = (headersArgs) => {
+export const headers: HeadersFunction = (
+  headersArgs,
+) => {
   return boundary.headers(headersArgs);
 };
