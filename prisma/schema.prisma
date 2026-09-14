@@ -9,8 +9,8 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
@@ -76,14 +76,14 @@ model Experiment {
 }
 
 model Variant {
-  id           String     @id @default(cuid())
-  experimentId String
+  id            String     @id @default(cuid())
+  experimentId  String
   name          String
   isControl     Boolean    @default(false)
   titleOverride String?
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   @@index([experimentId])
 }
@@ -115,27 +115,27 @@ model Recommendation {
 }
 
 model BehaviorEvent {
-  id            String   @id @default(cuid())
-  shop          String
-  eventId       String
-  eventName     String
-  schemaVersion String
-  source        String
-  sourceId      String?
-  occurredAt    DateTime
-  sequence      Int?
-  clientId      String?
-  pageUrl       String?
-  pagePath      String?
-  pageReferrer  String?
-  pageTitle     String?
-  productId     String?
-  variantId     String?
-  sku           String?
-  quantity      Float?
-  value         Float?
-  currency      String?
-  checkoutToken String?
+  id                  String   @id @default(cuid())
+  shop                String
+  eventId             String
+  eventName           String
+  schemaVersion       String
+  source              String
+  sourceId            String?
+  occurredAt          DateTime
+  sequence            Int?
+  clientId            String?
+  pageUrl             String?
+  pagePath            String?
+  pageReferrer        String?
+  pageTitle           String?
+  productId           String?
+  variantId           String?
+  sku                 String?
+  quantity            Float?
+  value               Float?
+  currency            String?
+  checkoutToken       String?
   orderId             String?
   experimentId        String?
   experimentVariantId String?
