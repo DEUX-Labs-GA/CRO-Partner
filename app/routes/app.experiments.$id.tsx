@@ -18,6 +18,9 @@ import {
   isExperimentStatus,
 } from "../services/experiment-lifecycle";
 
+import { calculateExperimentStatistics } 
+  from "../services/experiment-statistics";
+
 export const action = async ({
   request,
   params,
@@ -160,17 +163,6 @@ export default function ExperimentDetailPage() {
         variant.variantId === "variant-a",
     ) ?? null;
 
-  const conversionLift =
-    controlResult?.conversionRate &&
-    treatmentResult?.conversionRate !== null &&
-    treatmentResult?.conversionRate !== undefined
-      ? (
-          (treatmentResult.conversionRate -
-            controlResult.conversionRate) /
-          controlResult.conversionRate
-        )
-      : null;
-
   const controlVariantName =
     experiment.variants.find(
       (variant) => variant.isControl,
@@ -181,11 +173,21 @@ export default function ExperimentDetailPage() {
       (variant) => !variant.isControl,
     )?.name ?? "Treatment";
 
-  const hasEnoughDirectionalData =
-    controlResult !== null &&
-    treatmentResult !== null &&
-    controlResult.visitors >= 30 &&
-    treatmentResult.visitors >= 30;
+  const statistics =
+    controlResult && treatmentResult
+      ? calculateExperimentStatistics({
+          control: {
+            visitors: controlResult.visitors,
+            conversions: controlResult.purchases,
+          },
+          treatment: {
+            visitors: treatmentResult.visitors,
+            conversions: treatmentResult.purchases,
+          },
+          confidenceLevel:
+            experiment.significanceLevel,
+        })
+      : null;
 
   return (
     <s-page heading={experiment.name}>
@@ -397,55 +399,97 @@ export default function ExperimentDetailPage() {
               ))}
             </div>
 
-            {controlResult && treatmentResult ? (
+            {statistics ? (
               <div
                 style={{
-                  border:
-                    conversionLift !== null && conversionLift < 0
-                      ? "1px solid #e3b9b9"
-                      : conversionLift !== null && conversionLift > 0
-                        ? "1px solid #b7d7c5"
-                        : "1px solid #dcdcdc",
+                  border: "1px solid #dcdcdc",
                   borderRadius: "12px",
                   padding: "16px",
-                  background:
-                    conversionLift !== null && conversionLift < 0
-                      ? "#fff6f6"
-                      : conversionLift !== null && conversionLift > 0
-                        ? "#f2faf5"
-                        : "#f7f7f7",
+                  background: "#f7f7f7",
                   marginBottom: "16px",
                 }}
               >
                 <div
                   style={{
                     fontWeight: 650,
-                    marginBottom: "6px",
+                    marginBottom: "10px",
                   }}
                 >
-                  Treatment lift vs. control
+                  Statistical interpretation
                 </div>
 
-                <div>
-                  Conversion-rate lift:{" "}
-                  <strong>
-                    {conversionLift === null
-                      ? "Not available yet"
-                      : formatSignedPercent(conversionLift)}
-                  </strong>
-                </div>
+                <ResultRow
+                  label="Absolute lift"
+                  value={formatSignedPercentagePoints(
+                    statistics.absoluteLift,
+                  )}
+                />
+
+                <ResultRow
+                  label="Relative lift"
+                  value={
+                    statistics.relativeLift === null
+                      ? "Not available"
+                      : formatSignedPercent(
+                          statistics.relativeLift,
+                        )
+                  }
+                />
+
+                <ResultRow
+                  label={`${Math.round(
+                    statistics.confidenceLevel * 100,
+                  )}% confidence interval`}
+                  value={
+                    statistics.confidenceInterval
+                      ? `${formatSignedPercentagePoints(
+                          statistics.confidenceInterval.lower,
+                        )} to ${formatSignedPercentagePoints(
+                          statistics.confidenceInterval.upper,
+                        )}`
+                      : "Not available"
+                  }
+                />
+
+                <ResultRow
+                  label="P-value"
+                  value={
+                    statistics.pValue === null
+                      ? "Not available"
+                      : statistics.pValue < 0.001
+                        ? "< 0.001"
+                        : statistics.pValue.toFixed(3)
+                  }
+                />
+
+                <ResultRow
+                  label="Statistically significant"
+                  value={
+                    statistics.statisticallySignificant
+                      ? "Yes"
+                      : "No"
+                  }
+                />
+
+                <ResultRow
+                  label="Outcome"
+                  value={formatStatisticalOutcome(
+                    statistics.outcome,
+                  )}
+                  emphasize
+                />
 
                 <div
                   style={{
-                    marginTop: "10px",
+                    marginTop: "12px",
                     fontSize: "13px",
                     lineHeight: 1.5,
                     color: "#4a4a4a",
                   }}
                 >
-                  {hasEnoughDirectionalData
-                    ? "Directional comparison available. Statistical significance has not yet been evaluated."
-                    : "Early result only — there is not enough traffic yet to treat this lift as a reliable experiment conclusion."}
+                  {getStatisticalExplanation(
+                    statistics.outcome,
+                  )}
                 </div>
               </div>
             ) : (
@@ -459,8 +503,8 @@ export default function ExperimentDetailPage() {
                   color: "#4a4a4a",
                 }}
               >
-                Lift will appear once both control and treatment
-                have recorded exposures.
+                Statistical comparison will appear once both
+                control and treatment have recorded exposures.
               </div>
             )}
 
@@ -679,6 +723,68 @@ function formatSignedPercent(value: number) {
   }
 
   return "0.00%";
+}
+
+
+function formatSignedPercentagePoints(
+  value: number | null,
+) {
+  if (value === null) {
+    return "—";
+  }
+
+  const percentagePoints = value * 100;
+
+  if (percentagePoints > 0) {
+    return `+${percentagePoints.toFixed(2)} pp`;
+  }
+
+  if (percentagePoints < 0) {
+    return `${percentagePoints.toFixed(2)} pp`;
+  }
+
+  return "0.00 pp";
+}
+
+function formatStatisticalOutcome(
+  outcome:
+    | "INSUFFICIENT_DATA"
+    | "INCONCLUSIVE"
+    | "TREATMENT_LEADING"
+    | "CONTROL_LEADING"
+    | "NO_DIFFERENCE",
+) {
+  return outcome
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_, prefix, letter) =>
+      `${prefix ? " " : ""}${letter.toUpperCase()}`,
+    );
+}
+
+function getStatisticalExplanation(
+  outcome:
+    | "INSUFFICIENT_DATA"
+    | "INCONCLUSIVE"
+    | "TREATMENT_LEADING"
+    | "CONTROL_LEADING"
+    | "NO_DIFFERENCE",
+) {
+  switch (outcome) {
+    case "INSUFFICIENT_DATA":
+      return "There is not enough traffic in both variants to treat the observed difference as a reliable experiment result.";
+
+    case "INCONCLUSIVE":
+      return "The variants have enough directional traffic, but the observed difference is not statistically significant at the configured confidence level.";
+
+    case "TREATMENT_LEADING":
+      return "The treatment conversion rate is statistically higher than control at the configured confidence level.";
+
+    case "CONTROL_LEADING":
+      return "The control conversion rate is statistically higher than treatment at the configured confidence level.";
+
+    case "NO_DIFFERENCE":
+      return "The observed conversion rates are effectively the same in this comparison.";
+  }
 }
 
 export const headers: HeadersFunction = (headersArgs) => {
