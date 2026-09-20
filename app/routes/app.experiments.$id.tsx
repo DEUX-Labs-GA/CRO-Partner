@@ -85,12 +85,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const baseline = await loadStoreBaseline(admin);
 
-  const results = experiment.trackingKey
-    ? await loadExperimentResults(
-        session.shop,
-        experiment.trackingKey,
-      )
-    : null;
+  const resultsByDatabaseId =
+    await loadExperimentResults(
+      session.shop,
+      experiment.id,
+    );
+
+  const results =
+    resultsByDatabaseId.totalExposedVisitors > 0 ||
+    !experiment.trackingKey
+      ? resultsByDatabaseId
+      : await loadExperimentResults(
+          session.shop,
+          experiment.trackingKey,
+        );
 
   return {
     experiment,
@@ -128,14 +136,28 @@ export default function ExperimentDetailPage() {
       ? totalPurchases / results.totalExposedVisitors
       : null;
 
+  const controlVariantId =
+    experiment.variants.find(
+      (variant) => variant.isControl,
+    )?.id ?? null;
+
+  const treatmentVariantId =
+    experiment.variants.find(
+      (variant) => !variant.isControl,
+    )?.id ?? null;
+
   const controlResult =
     results?.variants.find(
-      (variant) => variant.variantId === "control",
+      (variant) =>
+        variant.variantId === controlVariantId ||
+        variant.variantId === "control",
     ) ?? null;
 
   const treatmentResult =
     results?.variants.find(
-      (variant) => variant.variantId !== "control",
+      (variant) =>
+        variant.variantId === treatmentVariantId ||
+        variant.variantId === "variant-a",
     ) ?? null;
 
   const conversionLift =
@@ -301,7 +323,8 @@ export default function ExperimentDetailPage() {
                           fontWeight: 650,
                         }}
                       >
-                        {variant.variantId === "control"
+                        {variant.variantId === controlVariantId ||
+                        variant.variantId === "control"
                           ? controlVariantName
                           : treatmentVariantName}
                       </div>
@@ -313,6 +336,7 @@ export default function ExperimentDetailPage() {
                         borderRadius: "999px",
                         padding: "4px 9px",
                         background:
+                          variant.variantId === controlVariantId ||
                           variant.variantId === "control"
                             ? "#f1f1f1"
                             : "#eaf5ff",

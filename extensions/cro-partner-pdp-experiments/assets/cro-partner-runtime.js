@@ -74,11 +74,16 @@
 
       const experimentConfig = {
         id: activeExperiment.trackingKey,
+        databaseExperimentId: activeExperiment.experimentId,
         productId: activeExperiment.productId,
         variants: [
           controlVariant.id,
           treatmentVariant.id,
         ],
+        variantDatabaseIds: {
+          [controlVariant.id]: controlVariant.databaseId,
+          [treatmentVariant.id]: treatmentVariant.databaseId,
+        },
         variantContent: {
           [treatmentVariant.id]: {
             title: treatmentVariant.titleOverride,
@@ -116,15 +121,23 @@
       return;
     }
 
+    const runtimeAssignment = {
+      ...assignment,
+      databaseExperimentId: experimentConfig.databaseExperimentId,
+      databaseVariantId:
+        experimentConfig.variantDatabaseIds[assignment.variantId],
+    };
+
     runtimeContext.activeExperiment = {
-      experimentId: experimentConfig.id,
-      assignment,
+      experimentId: experimentConfig.databaseExperimentId,
+      trackingKey: experimentConfig.id,
+      assignment: runtimeAssignment,
       rendered: false,
     };
 
     if (assignment.variantId === "control") {
       runtimeContext.activeExperiment.rendered = true;
-      publishExposure(assignment);
+      publishExposure(runtimeAssignment);
       return;
     }
 
@@ -135,7 +148,7 @@
       return;
     }
 
-    renderVariantWhenReady(assignment, variant);
+    renderVariantWhenReady(runtimeAssignment, variant);
   }
 
   function renderVariantWhenReady(assignment, variant) {
@@ -209,13 +222,18 @@
     assignment,
     attempt = 0,
   ) {
+    const exposureExperimentId =
+      assignment.databaseExperimentId ?? assignment.experimentId;
+    const exposureVariantId =
+      assignment.databaseVariantId ?? assignment.variantId;
+
     const exposureKey =
-      `cro_partner_exposure:${assignment.experimentId}`;
+      `cro_partner_exposure:${exposureExperimentId}`;
 
     try {
       if (
         window.sessionStorage.getItem(exposureKey) ===
-        assignment.variantId
+        exposureVariantId
       ) {
         return;
       }
@@ -242,15 +260,15 @@
     window.Shopify.analytics.publish(
       "cro_partner:experiment_exposure",
       {
-        experimentId: assignment.experimentId,
-        variantId: assignment.variantId,
+        experimentId: exposureExperimentId,
+        variantId: exposureVariantId,
       },
     );
 
     try {
       window.sessionStorage.setItem(
         exposureKey,
-        assignment.variantId,
+        exposureVariantId,
       );
     } catch {
       // Exposure was still published.

@@ -18,7 +18,8 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:theme-runtime": "node scripts/build-theme-runtime.mjs"
   },
   "type": "module",
   "engines": {
