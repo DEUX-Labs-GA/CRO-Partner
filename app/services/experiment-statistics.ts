@@ -10,6 +10,21 @@ export type ExperimentOutcome =
   | "CONTROL_LEADING"
   | "NO_DIFFERENCE";
 
+export type ValidityCheckStatus =
+  | "PASS"
+  | "WARNING"
+  | "NOT_APPLICABLE";
+
+export type ValidityCheck = {
+  id:
+    | "MINIMUM_SAMPLE"
+    | "ALLOCATION_BALANCE"
+    | "AMBIGUOUS_VISITORS"
+    | "CONFIDENCE_INTERVAL";
+  status: ValidityCheckStatus;
+  message: string;
+};
+
 export type ExperimentStatistics = {
   controlConversionRate: number | null;
   treatmentConversionRate: number | null;
@@ -23,6 +38,9 @@ export type ExperimentStatistics = {
   pValue: number | null;
   statisticallySignificant: boolean;
   sampleSizeValid: boolean;
+  allocationPValue: number | null;
+  validityChecks: ValidityCheck[];
+  hasValidityWarnings: boolean;
   outcome: ExperimentOutcome;
 };
 
@@ -32,10 +50,12 @@ export function calculateExperimentStatistics({
   control,
   treatment,
   confidenceLevel = 0.95,
+  excludedAmbiguousVisitors = 0,
 }: {
   control: StatisticalVariant;
   treatment: StatisticalVariant;
   confidenceLevel?: number;
+  excludedAmbiguousVisitors?: number;
 }): ExperimentStatistics {
   const controlRate = rate(
     control.conversions,
@@ -61,6 +81,39 @@ export function calculateExperimentStatistics({
       pValue: null,
       statisticallySignificant: false,
       sampleSizeValid: false,
+      allocationPValue: null,
+      validityChecks: [
+        {
+          id: "MINIMUM_SAMPLE",
+          status: "WARNING",
+          message:
+            "Both variants need exposed visitors before statistical comparison is available.",
+        },
+        {
+          id: "ALLOCATION_BALANCE",
+          status: "NOT_APPLICABLE",
+          message:
+            "Allocation balance is not evaluated until enough visitors have been exposed.",
+        },
+        {
+          id: "AMBIGUOUS_VISITORS",
+          status:
+            excludedAmbiguousVisitors > 0
+              ? "WARNING"
+              : "PASS",
+          message:
+            excludedAmbiguousVisitors > 0
+              ? `${excludedAmbiguousVisitors} ambiguous visitor(s) were excluded from the analysis.`
+              : "No ambiguous visitors were excluded.",
+        },
+        {
+          id: "CONFIDENCE_INTERVAL",
+          status: "NOT_APPLICABLE",
+          message:
+            "A confidence interval is not available until both variants have exposures.",
+        },
+      ],
+      hasValidityWarnings: true,
       outcome: "INSUFFICIENT_DATA",
     };
   }
@@ -126,6 +179,83 @@ export function calculateExperimentStatistics({
     treatment.visitors >=
       MINIMUM_DIRECTIONAL_SAMPLE_PER_VARIANT;
 
+  const totalVisitors =
+    control.visitors + treatment.visitors;
+
+  /*
+   * Sample-ratio mismatch check for an intended 50/50 split.
+   * Only evaluate after 100 total visitors so tiny samples do
+   * not generate noisy allocation warnings.
+   */
+  const allocationPValue =
+    totalVisitors >= 100
+      ? calculateAllocationPValue(
+          control.visitors,
+          treatment.visitors,
+        )
+      : null;
+
+  const allocationWarning =
+    allocationPValue !== null &&
+    allocationPValue < 0.01;
+
+  const confidenceIntervalCrossesZero =
+    confidenceInterval !== null &&
+    confidenceInterval.lower <= 0 &&
+    confidenceInterval.upper >= 0;
+
+  const validityChecks: ValidityCheck[] = [
+    {
+      id: "MINIMUM_SAMPLE",
+      status: sampleSizeValid ? "PASS" : "WARNING",
+      message: sampleSizeValid
+        ? "Both variants meet the minimum directional sample floor."
+        : `Each variant needs at least ${MINIMUM_DIRECTIONAL_SAMPLE_PER_VARIANT} exposed visitors before directional interpretation.`,
+    },
+    {
+      id: "ALLOCATION_BALANCE",
+      status:
+        allocationPValue === null
+          ? "NOT_APPLICABLE"
+          : allocationWarning
+            ? "WARNING"
+            : "PASS",
+      message:
+        allocationPValue === null
+          ? "Allocation balance will be evaluated after 100 total exposed visitors."
+          : allocationWarning
+            ? "The observed control/treatment allocation differs materially from the intended 50/50 split."
+            : "Control/treatment allocation is consistent with the intended 50/50 split.",
+    },
+    {
+      id: "AMBIGUOUS_VISITORS",
+      status:
+        excludedAmbiguousVisitors > 0
+          ? "WARNING"
+          : "PASS",
+      message:
+        excludedAmbiguousVisitors > 0
+          ? `${excludedAmbiguousVisitors} ambiguous visitor(s) were excluded from the analysis.`
+          : "No ambiguous visitors were excluded.",
+    },
+    {
+      id: "CONFIDENCE_INTERVAL",
+      status:
+        confidenceIntervalCrossesZero
+          ? "WARNING"
+          : "PASS",
+      message:
+        confidenceIntervalCrossesZero
+          ? "The confidence interval includes zero, so the observed difference is compatible with no true effect."
+          : "The confidence interval does not include zero.",
+    },
+  ];
+
+  const hasValidityWarnings =
+    validityChecks.some(
+      (check) => check.status === "WARNING",
+    );
+
   const statisticallySignificant =
     pValue < alpha;
 
@@ -156,8 +286,40 @@ export function calculateExperimentStatistics({
     pValue,
     statisticallySignificant,
     sampleSizeValid,
+    allocationPValue,
+    validityChecks,
+    hasValidityWarnings,
     outcome,
   };
+}
+
+function calculateAllocationPValue(
+  controlVisitors: number,
+  treatmentVisitors: number,
+) {
+  const total =
+    controlVisitors + treatmentVisitors;
+
+  if (total <= 0) {
+    return null;
+  }
+
+  const expected = total / 2;
+  const standardDeviation =
+    Math.sqrt(total * 0.25);
+
+  if (standardDeviation === 0) {
+    return null;
+  }
+
+  const zScore =
+    (controlVisitors - expected) /
+    standardDeviation;
+
+  return (
+    2 *
+    (1 - normalCDF(Math.abs(zScore)))
+  );
 }
 
 function rate(

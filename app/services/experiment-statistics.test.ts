@@ -127,4 +127,107 @@ describe("experiment statistics", () => {
 
     expect(result.relativeLift).toBeNull();
   });
+
+  it("warns when ambiguous visitors were excluded", () => {
+    const result = calculateExperimentStatistics({
+      control: {
+        visitors: 100,
+        conversions: 10,
+      },
+      treatment: {
+        visitors: 100,
+        conversions: 12,
+      },
+      excludedAmbiguousVisitors: 3,
+    });
+
+    const check = result.validityChecks.find(
+      (item) => item.id === "AMBIGUOUS_VISITORS",
+    );
+
+    expect(check?.status).toBe("WARNING");
+    expect(result.hasValidityWarnings).toBe(true);
+  });
+
+  it("does not evaluate allocation balance before 100 visitors", () => {
+    const result = calculateExperimentStatistics({
+      control: {
+        visitors: 40,
+        conversions: 4,
+      },
+      treatment: {
+        visitors: 40,
+        conversions: 5,
+      },
+    });
+
+    const check = result.validityChecks.find(
+      (item) => item.id === "ALLOCATION_BALANCE",
+    );
+
+    expect(result.allocationPValue).toBeNull();
+    expect(check?.status).toBe("NOT_APPLICABLE");
+  });
+
+  it("passes a balanced 50/50 allocation", () => {
+    const result = calculateExperimentStatistics({
+      control: {
+        visitors: 500,
+        conversions: 50,
+      },
+      treatment: {
+        visitors: 500,
+        conversions: 55,
+      },
+    });
+
+    const check = result.validityChecks.find(
+      (item) => item.id === "ALLOCATION_BALANCE",
+    );
+
+    expect(result.allocationPValue).not.toBeNull();
+    expect(check?.status).toBe("PASS");
+  });
+
+  it("warns on a severe sample-ratio mismatch", () => {
+    const result = calculateExperimentStatistics({
+      control: {
+        visitors: 700,
+        conversions: 70,
+      },
+      treatment: {
+        visitors: 300,
+        conversions: 30,
+      },
+    });
+
+    const check = result.validityChecks.find(
+      (item) => item.id === "ALLOCATION_BALANCE",
+    );
+
+    expect(result.allocationPValue).not.toBeNull();
+    expect(result.allocationPValue!).toBeLessThan(0.01);
+    expect(check?.status).toBe("WARNING");
+    expect(result.hasValidityWarnings).toBe(true);
+  });
+
+  it("warns when the confidence interval crosses zero", () => {
+    const result = calculateExperimentStatistics({
+      control: {
+        visitors: 500,
+        conversions: 50,
+      },
+      treatment: {
+        visitors: 500,
+        conversions: 54,
+      },
+    });
+
+    const check = result.validityChecks.find(
+      (item) => item.id === "CONFIDENCE_INTERVAL",
+    );
+
+    expect(check?.status).toBe("WARNING");
+  });
+
 });
