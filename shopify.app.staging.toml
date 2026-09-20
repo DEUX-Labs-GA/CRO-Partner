@@ -1,0 +1,32 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "d43c84c7993b4faef85b5e4e142b62b4"
+application_url = "https://cro-partner-production.up.railway.app"
+embedded = true
+name = "cro-partner"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,read_orders,write_pixels,read_customer_events,write_app_proxy"
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[auth]
+redirect_urls = [ "https://cro-partner-production.up.railway.app/auth/callback" ]
+
+[build]
+automatically_update_urls_on_dev = false
+
+[app_proxy]
+url = "/api/experiment-runtime"
+subpath = "cro-partner"
+prefix = "apps"
