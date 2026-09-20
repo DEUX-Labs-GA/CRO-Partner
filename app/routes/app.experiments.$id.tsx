@@ -186,6 +186,8 @@ export default function ExperimentDetailPage() {
           },
           confidenceLevel:
             experiment.significanceLevel,
+          excludedAmbiguousVisitors:
+            results?.excludedAmbiguousVisitors ?? 0,
         })
       : null;
 
@@ -418,6 +420,8 @@ export default function ExperimentDetailPage() {
                   Statistical interpretation
                 </div>
 
+                
+
                 <ResultRow
                   label="Absolute lift"
                   value={formatSignedPercentagePoints(
@@ -490,6 +494,43 @@ export default function ExperimentDetailPage() {
                   {getStatisticalExplanation(
                     statistics.outcome,
                   )}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "16px",
+                    paddingTop: "14px",
+                    borderTop: "1px solid #e2e2e2",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 650,
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Validity checks
+                  </div>
+
+                  {statistics.validityChecks.map((check) => (
+                    <div
+                      key={check.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "120px 1fr",
+                        gap: "12px",
+                        padding: "7px 0",
+                        fontSize: "13px",
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <strong>
+                        {formatValidityStatus(check.status)}
+                      </strong>
+
+                      <span>{check.message}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : (
@@ -784,6 +825,21 @@ function getStatisticalExplanation(
 
     case "NO_DIFFERENCE":
       return "The observed conversion rates are effectively the same in this comparison.";
+  }
+}
+
+function formatValidityStatus(
+  status: "PASS" | "WARNING" | "NOT_APPLICABLE",
+) {
+  switch (status) {
+    case "PASS":
+      return "Pass";
+
+    case "WARNING":
+      return "Warning";
+
+    case "NOT_APPLICABLE":
+      return "Pending";
   }
 }
 
