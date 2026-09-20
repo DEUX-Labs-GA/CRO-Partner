@@ -99,6 +99,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             databaseId: treatmentVariant.id,
             name: treatmentVariant.name,
             isControl: false,
+            target:
+              treatmentVariant.target ??
+              (treatmentVariant.titleOverride
+                ? "PRODUCT_TITLE"
+                : null),
+            changeType:
+              treatmentVariant.changeType ??
+              (treatmentVariant.titleOverride
+                ? "REPLACE_TEXT"
+                : null),
+            changeValue:
+              treatmentVariant.changeValue ??
+              treatmentVariant.titleOverride,
+            // Legacy compatibility while old title-specific
+            // experiments still exist.
             titleOverride: treatmentVariant.titleOverride,
           },
         ],

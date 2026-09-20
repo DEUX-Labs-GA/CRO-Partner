@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { MetricType } from "@prisma/client";
+import {
+  ExperimentChangeType,
+  ExperimentTarget,
+  MetricType,
+} from "@prisma/client";
 import {
   useActionData,
   useLoaderData,
@@ -49,8 +53,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const treatmentName = String(
       formData.get("treatmentName") || "",
     ).trim();
-    const treatmentTitle = String(
-      formData.get("treatmentTitle") || "",
+    const target = String(
+      formData.get("target") || "",
+    );
+    const changeType = String(
+      formData.get("changeType") || "",
+    );
+    const changeValue = String(
+      formData.get("changeValue") || "",
     ).trim();
 
     const baselineConversionRate =
@@ -69,11 +79,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       !targetProductId ||
       !controlName ||
       !treatmentName ||
-      !treatmentTitle
+      !changeValue
     ) {
       return {
         error:
           "Complete every field before saving the experiment.",
+      };
+    }
+
+    if (
+      !Object.values(ExperimentTarget).includes(
+        target as ExperimentTarget,
+      )
+    ) {
+      return {
+        error: "Select a valid experiment target.",
+      };
+    }
+
+    if (
+      !Object.values(ExperimentChangeType).includes(
+        changeType as ExperimentChangeType,
+      )
+    ) {
+      return {
+        error: "Select a valid change type.",
       };
     }
 
@@ -146,7 +176,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             {
               name: treatmentName,
               isControl: false,
-              titleOverride: treatmentTitle,
+              target: target as ExperimentTarget,
+              changeType:
+                changeType as ExperimentChangeType,
+              changeValue,
+              // Preserve the legacy field while existing
+              // title experiments remain supported.
+              titleOverride:
+                target === ExperimentTarget.PRODUCT_TITLE
+                  ? changeValue
+                  : null,
             },
           ],
         },
@@ -262,23 +301,42 @@ export default function NewExperiment() {
             </s-option>
           </s-select>
 
+          <s-select
+            label="Experiment target"
+            name="target"
+            required
+          >
+            <s-option value="PRODUCT_TITLE">
+              Product title
+            </s-option>
+            <s-option value="ADD_TO_CART_BUTTON">
+              Add to cart button
+            </s-option>
+          </s-select>
+
+          <input
+            type="hidden"
+            name="changeType"
+            value="REPLACE_TEXT"
+          />
+
           <s-text-field
             label="Control variant name"
             name="controlName"
-            value="Original product title"
+            value="Original content"
             required
           />
 
           <s-text-field
             label="Treatment variant name"
             name="treatmentName"
-            value="Treatment product title"
+            value="Treatment content"
             required
           />
 
           <s-text-field
-            label="Treatment product title"
-            name="treatmentTitle"
+            label="Treatment replacement text"
+            name="changeValue"
             required
           />
 
@@ -289,8 +347,9 @@ export default function NewExperiment() {
               color: "#616161",
             }}
           >
-            Control keeps the product's original title.
-            Treatment replaces it with the title entered above.
+            Control keeps the storefront unchanged. Treatment
+            replaces the selected target's text with the value
+            entered above.
           </p>
 
           <s-number-field

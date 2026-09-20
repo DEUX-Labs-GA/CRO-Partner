@@ -86,7 +86,19 @@
         },
         variantContent: {
           [treatmentVariant.id]: {
-            title: treatmentVariant.titleOverride,
+            target:
+              treatmentVariant.target ??
+              (treatmentVariant.titleOverride
+                ? "PRODUCT_TITLE"
+                : null),
+            changeType:
+              treatmentVariant.changeType ??
+              (treatmentVariant.titleOverride
+                ? "REPLACE_TEXT"
+                : null),
+            value:
+              treatmentVariant.changeValue ??
+              treatmentVariant.titleOverride,
           },
         },
       };
@@ -187,35 +199,55 @@
   }
 
   function renderVariant(assignment, variant) {
-    const titleElement = findProductTitle();
+    if (
+      variant.changeType !== "REPLACE_TEXT" ||
+      typeof variant.value !== "string" ||
+      !variant.value.trim()
+    ) {
+      return false;
+    }
 
-    if (!titleElement) {
+    const targetElement = findTargetElement(variant.target);
+
+    if (!targetElement) {
       return false;
     }
 
     const renderKey =
       `${assignment.experimentId}:${assignment.variantId}`;
 
-    if (titleElement.dataset.croPartnerRender === renderKey) {
+    if (
+      targetElement.dataset.croPartnerRender === renderKey
+    ) {
       runtimeContext.activeExperiment.rendered = true;
       return true;
     }
 
-    if (!titleElement.dataset.croPartnerOriginalText) {
-      titleElement.dataset.croPartnerOriginalText =
-        titleElement.textContent?.trim() ?? "";
+    if (!targetElement.dataset.croPartnerOriginalText) {
+      targetElement.dataset.croPartnerOriginalText =
+        targetElement.textContent?.trim() ?? "";
     }
 
-    if (typeof variant.title === "string") {
-      titleElement.textContent = variant.title;
-    }
+    targetElement.textContent = variant.value;
+    targetElement.dataset.croPartnerRender = renderKey;
 
-    titleElement.dataset.croPartnerRender = renderKey;
     runtimeContext.activeExperiment.rendered = true;
 
     publishExposure(assignment);
 
     return true;
+  }
+
+  function findTargetElement(target) {
+    if (target === "PRODUCT_TITLE") {
+      return findProductTitle();
+    }
+
+    if (target === "ADD_TO_CART_BUTTON") {
+      return findAddToCartTextTarget();
+    }
+
+    return null;
   }
 
   function publishExposure(
@@ -282,6 +314,29 @@
       "h1.product-title",
       "[data-product-title]",
       "main h1",
+    ];
+
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+
+      if (element) {
+        return element;
+      }
+    }
+
+    return null;
+  }
+
+  function findAddToCartTextTarget() {
+    const selectors = [
+      "[data-add-to-cart-text]",
+      ".product-form__submit span",
+      "button[name=\"add\"] span",
+      "[data-add-to-cart] span",
+      ".product-form__submit",
+      "button[name=\"add\"]",
+      "[data-add-to-cart]",
+      "form[action*=\"/cart/add\"] button[type=\"submit\"]",
     ];
 
     for (const selector of selectors) {

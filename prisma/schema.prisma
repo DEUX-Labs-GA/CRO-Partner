@@ -42,6 +42,15 @@ enum ExperimentStatus {
   ARCHIVED
 }
 
+enum ExperimentTarget {
+  PRODUCT_TITLE
+  ADD_TO_CART_BUTTON
+}
+
+enum ExperimentChangeType {
+  REPLACE_TEXT
+}
+
 enum MetricType {
   CONVERSION_RATE
   REVENUE
@@ -76,14 +85,21 @@ model Experiment {
 }
 
 model Variant {
-  id            String     @id @default(cuid())
+  id            String                @id @default(cuid())
   experimentId  String
   name          String
-  isControl     Boolean    @default(false)
+  isControl     Boolean               @default(false)
+
+  // Legacy title-specific treatment. Remove after migration.
   titleOverride String?
-  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+
+  target        ExperimentTarget?
+  changeType    ExperimentChangeType?
+  changeValue   String?
+
+  experiment    Experiment            @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   @@index([experimentId])
 }
