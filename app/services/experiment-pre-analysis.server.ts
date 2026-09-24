@@ -28,8 +28,20 @@ export type Readiness =
   | "LOW_VOLUME"
   | "READY_FOR_ESTIMATION";
 
+export type TrafficSource =
+  | "MEASURED_PRODUCT_VISITORS"
+  | "INFERRED_FROM_ORDERS";
+
+export type MeasuredTrafficInput = {
+  eligibleVisitors: number;
+  eligibleVisitorsPerDay: number;
+  days: number;
+};
+
 export type PreAnalysis = StoreBaseline & {
   dataAvailability: "AVAILABLE" | "ORDERS_UNAVAILABLE";
+  trafficSource: TrafficSource;
+  measuredTraffic: MeasuredTrafficInput | null;
   readiness: Readiness;
   explanation: string;
   estimate: FeasibilityEstimate | null;
@@ -151,11 +163,16 @@ function inverseNormalCdf(probability: number): number {
 export function calculateFeasibility(
   baseline: Pick<StoreBaseline, "recentOrderCount" | "orderWindow">,
   assumptions: FeasibilityAssumptions,
+  measuredTraffic: MeasuredTrafficInput | null = null,
 ): FeasibilityEstimate | null {
   const { baselineConversionRate, minimumDetectableEffect, significanceLevel, statisticalPower } = assumptions;
   const ordersPerDay = baseline.recentOrderCount === null
     ? 0
     : baseline.recentOrderCount / baseline.orderWindow.days;
+
+  const measuredVisitorsPerDay =
+    measuredTraffic?.eligibleVisitorsPerDay ?? null;
+
   const targetConversionRate = baselineConversionRate === null
     ? Number.NaN
     : baselineConversionRate * (1 + minimumDetectableEffect);
@@ -166,7 +183,15 @@ export function calculateFeasibility(
     !Number.isFinite(minimumDetectableEffect) || minimumDetectableEffect <= 0 ||
     !Number.isFinite(significanceLevel) || significanceLevel <= 0 || significanceLevel >= 1 ||
     !Number.isFinite(statisticalPower) || statisticalPower <= 0 || statisticalPower >= 1 ||
-    targetConversionRate >= 1 || ordersPerDay <= 0
+    targetConversionRate >= 1 ||
+    (
+      measuredVisitorsPerDay === null &&
+      ordersPerDay <= 0
+    ) ||
+    (
+      measuredVisitorsPerDay !== null &&
+      measuredVisitorsPerDay <= 0
+    )
   ) return null;
 
   const alphaZ = inverseNormalCdf(1 - (1 - significanceLevel) / 2);
@@ -181,7 +206,10 @@ export function calculateFeasibility(
       )) ** 2) / difference ** 2,
   );
 const totalRequiredSample = samplePerVariant * 2;
-const estimatedSessionsPerDay = ordersPerDay / baselineConversionRate;
+
+const estimatedSessionsPerDay =
+  measuredVisitorsPerDay ??
+  ordersPerDay / baselineConversionRate;
 
 return {
   baselineConversionRate,
@@ -208,12 +236,27 @@ function formatEstimatedDuration(days: number): string {
 export function assessPreAnalysis(
   baseline: StoreBaseline,
   assumptions: FeasibilityAssumptions,
+  measuredTraffic: MeasuredTrafficInput | null = null,
 ): PreAnalysis {
-  const estimate = calculateFeasibility(baseline, assumptions);
+  const estimate = calculateFeasibility(
+    baseline,
+    assumptions,
+    measuredTraffic,
+  );
+
+  const trafficSource: TrafficSource =
+    measuredTraffic
+      ? "MEASURED_PRODUCT_VISITORS"
+      : "INFERRED_FROM_ORDERS";
   if (baseline.recentOrderCount === null || baseline.recentOrderCount <= 0 || !estimate) {
     return {
       ...baseline,
-      dataAvailability: baseline.recentOrderCount === null ? "ORDERS_UNAVAILABLE" : "AVAILABLE",
+      dataAvailability:
+        baseline.recentOrderCount === null
+          ? "ORDERS_UNAVAILABLE"
+          : "AVAILABLE",
+      trafficSource,
+      measuredTraffic,
       readiness: "INSUFFICIENT_DATA",
       estimate: null,
       explanation: baseline.recentOrderCount === null
@@ -226,9 +269,11 @@ export function assessPreAnalysis(
     return {
       ...baseline,
       dataAvailability: "AVAILABLE",
+      trafficSource,
+      measuredTraffic,
       readiness: "LOW_VOLUME",
       estimate,
-      explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} sessions per variant and is estimated to run for ${formatEstimatedDuration(estimate.estimatedDurationDays)} based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} estimated sessions per day. Do not run an A/B test at current volume. Consider qualitative validation, usability testing, customer research, or a monitored implementation instead.`,
+      explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} visitors per variant and is estimated to run for ${formatEstimatedDuration(estimate.estimatedDurationDays)} based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} ${trafficSource === "MEASURED_PRODUCT_VISITORS" ? "measured eligible visitors" : "estimated sessions"} per day. Do not run an A/B test at current volume. Consider qualitative validation, usability testing, customer research, or a monitored implementation instead.`,
     };
   }
 
@@ -237,6 +282,6 @@ export function assessPreAnalysis(
     dataAvailability: "AVAILABLE",
     readiness: "READY_FOR_ESTIMATION",
     estimate,
-    explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} sessions per variant and is estimated to run for ${formatEstimatedDuration(estimate.estimatedDurationDays)} based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} estimated sessions per day, within the recommended ${MAX_RECOMMENDED_DURATION_DAYS}-day testing window.`,
+    explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} visitors per variant and is estimated to run for ${formatEstimatedDuration(estimate.estimatedDurationDays)} based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} ${trafficSource === "MEASURED_PRODUCT_VISITORS" ? "measured eligible visitors" : "estimated sessions"} per day, within the recommended ${MAX_RECOMMENDED_DURATION_DAYS}-day testing window.`,
   };
 }

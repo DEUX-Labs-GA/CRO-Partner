@@ -74,4 +74,44 @@ it("classifies a shorter-duration estimate as ready", () => {
       baselineConversionRate: 1,
     })).toBeNull();
   });
+
+  it("uses measured eligible visitor traffic when available", () => {
+    const result = assessPreAnalysis(
+      baseline(300),
+      assumptions,
+      {
+        eligibleVisitors: 6000,
+        eligibleVisitorsPerDay: 200,
+        days: 30,
+      },
+    );
+
+    expect(result.trafficSource).toBe(
+      "MEASURED_PRODUCT_VISITORS",
+    );
+
+    expect(
+      result.estimate?.estimatedSessionsPerDay,
+    ).toBe(200);
+
+    expect(result.measuredTraffic?.eligibleVisitors).toBe(
+      6000,
+    );
+  });
+
+  it("falls back to order-inferred traffic when measured traffic is unavailable", () => {
+    const result = assessPreAnalysis(
+      baseline(300),
+      assumptions,
+    );
+
+    expect(result.trafficSource).toBe(
+      "INFERRED_FROM_ORDERS",
+    );
+
+    expect(
+      result.estimate?.estimatedSessionsPerDay,
+    ).toBeCloseTo(200);
+  });
+
 });

@@ -12,6 +12,7 @@ import {
   loadStoreBaseline,
 } from "../services/experiment-pre-analysis.server";
 import { loadExperimentResults } from "../services/experiment-results.server";
+import { loadMeasuredTrafficBaseline } from "../services/measured-traffic.server";
 import {
   canTransitionExperiment,
   getAllowedExperimentTransitions,
@@ -88,6 +89,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const baseline = await loadStoreBaseline(admin);
 
+  const measuredTraffic =
+    await loadMeasuredTrafficBaseline({
+      shop: session.shop,
+      targetProductId: experiment.targetProductId,
+      days: 30,
+    });
+
   const resultsByDatabaseId =
     await loadExperimentResults(
       session.shop,
@@ -106,12 +114,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   return {
     experiment,
     results,
-    preAnalysis: assessPreAnalysis(baseline, {
-      baselineConversionRate: experiment.baselineConversionRate,
-      minimumDetectableEffect: experiment.minimumDetectableEffect,
-      significanceLevel: experiment.significanceLevel,
-      statisticalPower: experiment.statisticalPower,
-    }),
+    preAnalysis: assessPreAnalysis(
+      baseline,
+      {
+        baselineConversionRate:
+          experiment.baselineConversionRate,
+        minimumDetectableEffect:
+          experiment.minimumDetectableEffect,
+        significanceLevel:
+          experiment.significanceLevel,
+        statisticalPower:
+          experiment.statisticalPower,
+      },
+      measuredTraffic,
+    ),
   };
 };
 
@@ -604,6 +620,26 @@ export default function ExperimentDetailPage() {
       <s-section heading="Pre-analysis">
         <s-paragraph>Data availability: {preAnalysis.dataAvailability}</s-paragraph>
         <s-paragraph>
+          Traffic source:{" "}
+          {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+            ? "Measured eligible product visitors"
+            : "Estimated from recent orders"}
+        </s-paragraph>
+
+        {preAnalysis.measuredTraffic ? (
+          <>
+            <s-paragraph>
+              Measured eligible visitors ({preAnalysis.measuredTraffic.days} days):{" "}
+              {preAnalysis.measuredTraffic.eligibleVisitors.toLocaleString()}
+            </s-paragraph>
+
+            <s-paragraph>
+              Measured eligible visitors per day:{" "}
+              {preAnalysis.measuredTraffic.eligibleVisitorsPerDay.toFixed(2)}
+            </s-paragraph>
+          </>
+        ) : null}        
+        <s-paragraph>
           Order-volume data: {preAnalysis.orderDataAvailable ? "Available" : "Unavailable"}
         </s-paragraph>
         <s-paragraph>
@@ -623,8 +659,20 @@ export default function ExperimentDetailPage() {
         {preAnalysis.estimate ? (
           <>
             <s-paragraph>Target conversion rate: {(preAnalysis.estimate.targetConversionRate * 100).toFixed(2)}%</s-paragraph>
-            <s-paragraph>Estimated sessions per day: {Math.round(preAnalysis.estimate.estimatedSessionsPerDay).toLocaleString()}</s-paragraph>
-            <s-paragraph>Estimated sessions per day is inferred from recent orders and the merchant-provided baseline conversion rate.</s-paragraph>
+            <s-paragraph>
+  {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+    ? "Eligible visitors per day"
+    : "Estimated sessions per day"}
+  :{" "}
+  {Math.round(
+    preAnalysis.estimate.estimatedSessionsPerDay,
+  ).toLocaleString()}
+</s-paragraph>
+            <s-paragraph>
+  {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+    ? "Traffic is measured from CRO Partner product-view events for the experiment’s target product."
+    : "Traffic is inferred from recent orders and the merchant-provided baseline conversion rate."}
+</s-paragraph>
             <s-paragraph>Required sample per variant: {preAnalysis.estimate.requiredSamplePerVariant.toLocaleString()}</s-paragraph>
             <s-paragraph>Total required sample: {preAnalysis.estimate.totalRequiredSample.toLocaleString()}</s-paragraph>
             <s-paragraph>Estimated duration: {preAnalysis.estimate.estimatedDurationDays} days</s-paragraph>
