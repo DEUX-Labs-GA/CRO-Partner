@@ -230,4 +230,42 @@ describe("experiment statistics", () => {
     expect(check?.status).toBe("WARNING");
   });
 
+
+  it("does not declare a directional result when allocation is invalid", () => {
+    const result = calculateExperimentStatistics({
+      control: {
+        visitors: 900,
+        conversions: 90,
+      },
+      treatment: {
+        visitors: 300,
+        conversions: 60,
+      },
+    });
+
+    expect(result.statisticallySignificant).toBe(true);
+    expect(result.hasCriticalValidityIssue).toBe(true);
+    expect(result.canDeclareDirectionalResult).toBe(false);
+    expect(result.outcome).toBe("INCONCLUSIVE");
+  });
+
+  it("allows ambiguous-visitor warnings without blocking a valid directional result", () => {
+    const result = calculateExperimentStatistics({
+      control: {
+        visitors: 5000,
+        conversions: 500,
+      },
+      treatment: {
+        visitors: 5000,
+        conversions: 650,
+      },
+      excludedAmbiguousVisitors: 3,
+    });
+
+    expect(result.hasValidityWarnings).toBe(true);
+    expect(result.hasCriticalValidityIssue).toBe(false);
+    expect(result.canDeclareDirectionalResult).toBe(true);
+    expect(result.outcome).toBe("TREATMENT_LEADING");
+  });
+
 });

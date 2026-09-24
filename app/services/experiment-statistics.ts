@@ -41,6 +41,8 @@ export type ExperimentStatistics = {
   allocationPValue: number | null;
   validityChecks: ValidityCheck[];
   hasValidityWarnings: boolean;
+  hasCriticalValidityIssue: boolean;
+  canDeclareDirectionalResult: boolean;
   outcome: ExperimentOutcome;
 };
 
@@ -114,6 +116,8 @@ export function calculateExperimentStatistics({
         },
       ],
       hasValidityWarnings: true,
+      hasCriticalValidityIssue: true,
+      canDeclareDirectionalResult: false,
       outcome: "INSUFFICIENT_DATA",
     };
   }
@@ -256,21 +260,43 @@ export function calculateExperimentStatistics({
       (check) => check.status === "WARNING",
     );
 
+  /*
+   * Critical validity issues prevent the engine from declaring
+   * a directional result even when the raw p-value is significant.
+   *
+   * Ambiguous visitor exclusions remain visible as warnings, but
+   * they do not automatically invalidate the experiment.
+   */
+  const hasCriticalValidityIssue =
+    !sampleSizeValid || allocationWarning;
+
   const statisticallySignificant =
     pValue < alpha;
+
+  const canDeclareDirectionalResult =
+    statisticallySignificant &&
+    !hasCriticalValidityIssue;
 
   let outcome: ExperimentOutcome;
 
   if (!sampleSizeValid) {
     outcome = "INSUFFICIENT_DATA";
+  } else if (allocationWarning) {
+    outcome = "INCONCLUSIVE";
   } else if (!statisticallySignificant) {
     outcome =
       absoluteLift === 0
         ? "NO_DIFFERENCE"
         : "INCONCLUSIVE";
-  } else if (absoluteLift > 0) {
+  } else if (
+    canDeclareDirectionalResult &&
+    absoluteLift > 0
+  ) {
     outcome = "TREATMENT_LEADING";
-  } else if (absoluteLift < 0) {
+  } else if (
+    canDeclareDirectionalResult &&
+    absoluteLift < 0
+  ) {
     outcome = "CONTROL_LEADING";
   } else {
     outcome = "NO_DIFFERENCE";
@@ -289,6 +315,8 @@ export function calculateExperimentStatistics({
     allocationPValue,
     validityChecks,
     hasValidityWarnings,
+    hasCriticalValidityIssue,
+    canDeclareDirectionalResult,
     outcome,
   };
 }

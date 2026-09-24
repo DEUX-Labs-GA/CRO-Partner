@@ -476,12 +476,34 @@ export default function ExperimentDetailPage() {
                 />
 
                 <ResultRow
+                  label="Directional interpretation"
+                  value={
+                    statistics.canDeclareDirectionalResult
+                      ? "Eligible"
+                      : "Not eligible"
+                  }
+                />                
+
+                <ResultRow
                   label="Outcome"
                   value={formatStatisticalOutcome(
                     statistics.outcome,
                   )}
                   emphasize
                 />
+
+                <div
+                  style={{
+                    marginTop: "10px",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                    color: "#4a4a4a",
+                  }}
+                >
+                  {statistics.hasCriticalValidityIssue
+                    ? "A critical validity issue prevents a directional conclusion even if the raw statistical test appears significant."
+                    : "No critical validity issue is currently blocking directional interpretation."}
+                </div>                
 
                 <div
                   style={{
