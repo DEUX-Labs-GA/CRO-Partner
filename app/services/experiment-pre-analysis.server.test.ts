@@ -83,6 +83,7 @@ it("classifies a shorter-duration estimate as ready", () => {
         eligibleVisitors: 6000,
         eligibleVisitorsPerDay: 200,
         days: 30,
+        lookbackDays: 30,
       },
     );
 

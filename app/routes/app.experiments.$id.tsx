@@ -626,19 +626,26 @@ export default function ExperimentDetailPage() {
             : "Estimated from recent orders"}
         </s-paragraph>
 
-        {preAnalysis.measuredTraffic ? (
-          <>
-            <s-paragraph>
-              Measured eligible visitors ({preAnalysis.measuredTraffic.days} days):{" "}
-              {preAnalysis.measuredTraffic.eligibleVisitors.toLocaleString()}
-            </s-paragraph>
+{preAnalysis.measuredTraffic ? (
+  <>
+    <s-paragraph>
+      Measured eligible visitors:{" "}
+      {preAnalysis.measuredTraffic.eligibleVisitors.toLocaleString()}
+    </s-paragraph>
 
-            <s-paragraph>
-              Measured eligible visitors per day:{" "}
-              {preAnalysis.measuredTraffic.eligibleVisitorsPerDay.toFixed(2)}
-            </s-paragraph>
-          </>
-        ) : null}        
+    <s-paragraph>
+      Measurement coverage:{" "}
+      {preAnalysis.measuredTraffic.days} of{" "}
+      {preAnalysis.measuredTraffic.lookbackDays} days
+    </s-paragraph>
+
+    <s-paragraph>
+      Measured eligible visitors per day:{" "}
+      {preAnalysis.measuredTraffic.eligibleVisitorsPerDay.toFixed(2)}
+    </s-paragraph>
+  </>
+) : null}
+        
         <s-paragraph>
           Order-volume data: {preAnalysis.orderDataAvailable ? "Available" : "Unavailable"}
         </s-paragraph>

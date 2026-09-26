@@ -36,6 +36,7 @@ export type MeasuredTrafficInput = {
   eligibleVisitors: number;
   eligibleVisitorsPerDay: number;
   days: number;
+  lookbackDays: number;
 };
 
 export type PreAnalysis = StoreBaseline & {
@@ -280,6 +281,8 @@ export function assessPreAnalysis(
   return {
     ...baseline,
     dataAvailability: "AVAILABLE",
+    trafficSource,
+    measuredTraffic,
     readiness: "READY_FOR_ESTIMATION",
     estimate,
     explanation: `This experiment would require approximately ${estimate.requiredSamplePerVariant.toLocaleString()} visitors per variant and is estimated to run for ${formatEstimatedDuration(estimate.estimatedDurationDays)} based on approximately ${Math.round(estimate.estimatedSessionsPerDay).toLocaleString()} ${trafficSource === "MEASURED_PRODUCT_VISITORS" ? "measured eligible visitors" : "estimated sessions"} per day, within the recommended ${MAX_RECOMMENDED_DURATION_DAYS}-day testing window.`,
