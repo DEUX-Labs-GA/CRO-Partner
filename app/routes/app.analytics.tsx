@@ -4,6 +4,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { loadProductFunnel } from "../services/product-funnel.server";
 import { loadTrackedProducts } from "../services/tracked-products.server";
+import { detectFunnelOpportunities } from "../services/opportunity-detection.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -29,8 +30,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     funnelProductId,
   );
 
+  const opportunities =
+  detectFunnelOpportunities(funnel);
+
   return {
     funnel,
+    opportunities,
     products,
     selectedProductId: funnelProductId ?? "",
     selectedProduct,
@@ -40,6 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function AnalyticsPage() {
   const {
     funnel,
+    opportunities,
     products,
     selectedProductId,
     selectedProduct,
@@ -204,6 +210,75 @@ export default function AnalyticsPage() {
         </s-table>
       </s-section>
 
+      <s-section heading="Detected opportunities">
+        {opportunities.length === 0 ? (
+          <s-paragraph>
+            No opportunity currently meets the minimum evidence and drop-off
+            thresholds for this funnel.
+          </s-paragraph>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+            }}
+          >
+            {opportunities.map((opportunity) => (
+              <div
+                key={opportunity.ruleId}
+                style={{
+                  border: "1px solid #dcdcdc",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  background: "#ffffff",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 650,
+                    marginBottom: "10px",
+                  }}
+                >
+                  {opportunity.title}
+                </div>
+
+                <s-paragraph>
+                  Observation: {opportunity.observation}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Evidence: {opportunity.evidence}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Hypothesis: {opportunity.hypothesis}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Recommendation: {opportunity.recommendation}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Confidence: {formatLabel(opportunity.confidence)}
+                </s-paragraph>
+
+                <s-paragraph>
+                  Potential impact:{" "}
+                  {formatLabel(opportunity.potentialImpact.level)} —{" "}
+                  {opportunity.potentialImpact.affectedVisitors} affected visitor
+                  {opportunity.potentialImpact.affectedVisitors === 1 ? "" : "s"} (
+                  {formatPercent(
+                    opportunity.potentialImpact.affectedShare,
+                  )}
+                  )
+                </s-paragraph>
+              </div>
+            ))}
+          </div>
+        )}
+      </s-section>      
+
       <s-section heading="About this data">
         {isProductFiltered ? (
           <s-paragraph>
@@ -264,3 +339,11 @@ function formatCurrency(value: number, currency: string | null) {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+function formatLabel(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_, prefix, letter) =>
+      `${prefix ? " " : ""}${letter.toUpperCase()}`,
+    );
+}
