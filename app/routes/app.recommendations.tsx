@@ -10,6 +10,9 @@ import {
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
+import {
+  calculateOpportunityPriority,
+} from "../services/opportunity-prioritization";
 
 const OPPORTUNITY_STATUSES = [
   "RESEARCH_NEEDED",
@@ -56,6 +59,131 @@ export const action = async ({
 
   const formData =
     await request.formData();
+
+  const intent =
+    formData.get("intent");
+
+  if (intent === "create-opportunity") {
+    const title =
+      formData.get("title");
+
+    const observation =
+      formData.get("observation");
+
+    const evidence =
+      formData.get("evidence");
+
+    const hypothesis =
+      formData.get("hypothesis");
+
+    const recommendation =
+      formData.get("recommendation");
+
+    const confidence =
+      formData.get("confidence");
+
+    const impact =
+      formData.get("impact");
+
+    const reach =
+      Number(formData.get("reach"));
+
+    const effort =
+      Number(formData.get("effort"));
+
+    if (
+      typeof title !== "string" ||
+      !title.trim() ||
+      typeof observation !== "string" ||
+      !observation.trim() ||
+      typeof evidence !== "string" ||
+      !evidence.trim() ||
+      typeof hypothesis !== "string" ||
+      !hypothesis.trim() ||
+      typeof recommendation !== "string" ||
+      !recommendation.trim()
+    ) {
+      throw new Response(
+        "Required opportunity fields are missing",
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (
+      confidence !== "LOW" &&
+      confidence !== "MEDIUM" &&
+      confidence !== "HIGH"
+    ) {
+      throw new Response(
+        "Invalid confidence",
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (
+      impact !== "LOW" &&
+      impact !== "MEDIUM" &&
+      impact !== "HIGH"
+    ) {
+      throw new Response(
+        "Invalid impact",
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const priority =
+      calculateOpportunityPriority({
+        reach,
+        impact,
+        confidence,
+        effort,
+      });
+
+    await prisma.opportunity.create({
+      data: {
+        shop: session.shop,
+        sourceRuleId: "MANUAL",
+        productId: null,
+        title: title.trim(),
+        observation:
+          observation.trim(),
+        evidence: evidence.trim(),
+        hypothesis:
+          hypothesis.trim(),
+        recommendation:
+          recommendation.trim(),
+        confidence,
+        potentialImpact: impact,
+        reach: priority.reach,
+        impactScore:
+          priority.impactScore,
+        confidenceScore:
+          priority.confidenceScore,
+        effort: priority.effort,
+        priorityScore:
+          priority.priorityScore,
+      },
+    });
+
+    return {
+      ok: true,
+    };
+  }
+
+  if (intent !== "update-status") {
+    throw new Response(
+      "Invalid action",
+      {
+        status: 400,
+      },
+    );
+  }
 
   const opportunityId =
     formData.get("opportunityId");
@@ -124,6 +252,173 @@ export default function RecommendationsPage() {
 
   return (
     <s-page heading="CRO Backlog">
+      <s-section heading="Create opportunity">
+        <Form method="post">
+          <input
+            type="hidden"
+            name="intent"
+            value="create-opportunity"
+          />
+
+          <div
+            style={{
+              display: "grid",
+              gap: "12px",
+              maxWidth: "760px",
+            }}
+          >
+            <label>
+              Title
+              <input
+                name="title"
+                required
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "4px",
+                  minHeight: "36px",
+                }}
+              />
+            </label>
+
+            <label>
+              Observation
+              <textarea
+                name="observation"
+                required
+                rows={3}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "4px",
+                }}
+              />
+            </label>
+
+            <label>
+              Evidence
+              <textarea
+                name="evidence"
+                required
+                rows={3}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "4px",
+                }}
+              />
+            </label>
+
+            <label>
+              Hypothesis
+              <textarea
+                name="hypothesis"
+                required
+                rows={3}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "4px",
+                }}
+              />
+            </label>
+
+            <label>
+              Recommendation
+              <textarea
+                name="recommendation"
+                required
+                rows={3}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "4px",
+                }}
+              />
+            </label>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flexWrap: "wrap",
+              }}
+            >
+              <label>
+                Reach
+                <input
+                  type="number"
+                  name="reach"
+                  min="0"
+                  defaultValue="10"
+                  required
+                />
+              </label>
+
+              <label>
+                Impact
+                <select
+                  name="impact"
+                  defaultValue="MEDIUM"
+                >
+                  <option value="LOW">
+                    Low
+                  </option>
+                  <option value="MEDIUM">
+                    Medium
+                  </option>
+                  <option value="HIGH">
+                    High
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                Confidence
+                <select
+                  name="confidence"
+                  defaultValue="MEDIUM"
+                >
+                  <option value="LOW">
+                    Low
+                  </option>
+                  <option value="MEDIUM">
+                    Medium
+                  </option>
+                  <option value="HIGH">
+                    High
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                Effort
+                <input
+                  type="number"
+                  name="effort"
+                  min="0.5"
+                  step="0.5"
+                  defaultValue="2"
+                  required
+                />
+              </label>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                style={{
+                  minHeight: "36px",
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                Add to CRO backlog
+              </button>
+            </div>
+          </div>
+        </Form>
+      </s-section>
       <s-section heading="Prioritized opportunities">
         <s-paragraph>
           Opportunities are sorted by priority score:
@@ -237,6 +532,12 @@ export default function RecommendationsPage() {
                     name="opportunityId"
                     value={opportunity.id}
                   />
+
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value="update-status"
+                  />                  
 
                   <div
                     style={{
