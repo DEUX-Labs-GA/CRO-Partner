@@ -1,10 +1,130 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData } from "react-router";
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
+import {
+  Form,
+  redirect,
+  useLoaderData,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { loadProductFunnel } from "../services/product-funnel.server";
 import { loadTrackedProducts } from "../services/tracked-products.server";
 import { detectFunnelOpportunities } from "../services/opportunity-detection.server";
+import { saveDetectedOpportunity } from "../services/opportunity-backlog.server";
+
+export const action = async ({
+  request,
+}: ActionFunctionArgs) => {
+  const { session } =
+    await authenticate.admin(request);
+
+  const formData =
+    await request.formData();
+
+  const intent =
+    formData.get("intent");
+
+  if (intent !== "add-opportunity") {
+    throw new Response("Invalid action", {
+      status: 400,
+    });
+  }
+
+  const ruleId =
+    formData.get("ruleId");
+
+  const requestedProductId =
+    formData.get("productId");
+
+  if (typeof ruleId !== "string") {
+    throw new Response(
+      "Opportunity rule is required",
+      {
+        status: 400,
+      },
+    );
+  }
+
+  const products =
+    await loadTrackedProducts(session.shop);
+
+  const selectedProduct =
+    typeof requestedProductId === "string" &&
+    requestedProductId
+      ? products.find(
+          (product) =>
+            product.productId ===
+            requestedProductId,
+        ) ?? null
+      : null;
+
+  /*
+   * Reject a supplied product ID that does not belong to
+   * this shop's tracked product set.
+   */
+  if (
+    requestedProductId &&
+    !selectedProduct
+  ) {
+    throw new Response(
+      "Tracked product not found",
+      {
+        status: 404,
+      },
+    );
+  }
+
+  const productId =
+    selectedProduct?.productId ?? null;
+
+  const funnel =
+    await loadProductFunnel(
+      session.shop,
+      productId,
+    );
+
+  const detected =
+    detectFunnelOpportunities(funnel);
+
+  const opportunity =
+    detected.find(
+      (item) =>
+        item.ruleId === ruleId,
+    );
+
+  /*
+   * The server must currently detect the opportunity.
+   * We do not accept browser-supplied evidence or scoring.
+   */
+  if (!opportunity) {
+    throw new Response(
+      "Opportunity is no longer supported by current funnel data",
+      {
+        status: 409,
+      },
+    );
+  }
+
+  await saveDetectedOpportunity({
+    shop: session.shop,
+    productId,
+    opportunity,
+  });
+
+  const query =
+    productId
+      ? `?productId=${encodeURIComponent(
+          productId,
+        )}`
+      : "";
+
+  return redirect(
+    `/app/analytics${query}`,
+  );
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -273,6 +393,38 @@ export default function AnalyticsPage() {
                   )}
                   )
                 </s-paragraph>
+
+                <Form method="post">
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value="add-opportunity"
+                  />
+
+                  <input
+                    type="hidden"
+                    name="ruleId"
+                    value={opportunity.ruleId}
+                  />
+
+                  <input
+                    type="hidden"
+                    name="productId"
+                    value={selectedProductId}
+                  />
+
+                  <button
+                    type="submit"
+                    style={{
+                      marginTop: "12px",
+                      minHeight: "36px",
+                      padding: "6px 14px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Add to CRO backlog
+                  </button>
+                </Form>                
               </div>
             ))}
           </div>

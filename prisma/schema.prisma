@@ -64,6 +64,26 @@ enum RecommendationStatus {
   DISMISSED
 }
 
+enum OpportunityStatus {
+  RESEARCH_NEEDED
+  READY_TO_TEST
+  TESTING
+  COMPLETED
+  NOT_PURSUING
+}
+
+enum OpportunityConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum OpportunityImpact {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model Experiment {
   id                      String           @id @default(cuid())
   shop                    String
@@ -128,6 +148,35 @@ model Recommendation {
   updatedAt   DateTime             @updatedAt
 
   @@index([shop])
+}
+
+model Opportunity {
+  id              String                @id @default(cuid())
+  shop            String
+  sourceRuleId    String
+  productId       String?
+  title           String
+  observation     String
+  evidence        String
+  hypothesis      String
+  recommendation  String
+  confidence      OpportunityConfidence
+  potentialImpact OpportunityImpact
+
+  reach           Int
+  impactScore     Float
+  confidenceScore Float
+  effort          Float
+  priorityScore   Float
+
+  status          OpportunityStatus @default(RESEARCH_NEEDED)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([shop])
+  @@index([shop, status])
+  @@index([shop, priorityScore])
 }
 
 model BehaviorEvent {
