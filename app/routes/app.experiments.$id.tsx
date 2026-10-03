@@ -22,7 +22,9 @@ import {
 import { calculateExperimentStatistics } 
   from "../services/experiment-statistics";
 
-import { CROVariantComparisonChart } from "../components/charts/CROVariantComparisonChart";  
+import { CROVariantComparisonChart } from "../components/charts/CROVariantComparisonChart"; 
+
+import { CROFeasibilityChart } from "../components/charts/CROFeasibilityChart";
 
 export const action = async ({
   request,
@@ -675,6 +677,51 @@ const variantComparisonData =
       </s-section>
 
       <s-section heading="Pre-analysis">
+        {preAnalysis.estimate ? (
+          <div
+            style={{
+              marginBottom: "24px",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 650,
+                marginBottom: "4px",
+              }}
+            >
+              Experiment feasibility
+            </div>
+
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#616161",
+                marginBottom: "8px",
+              }}
+            >
+              Traffic capacity compared with the sample required
+              for a reliable experiment within the recommended
+              42-day testing window.
+            </div>
+
+            <CROFeasibilityChart
+              requiredSample={
+                preAnalysis.estimate
+                  .totalRequiredSample
+              }
+              visitorsPerDay={
+                preAnalysis.estimate
+                  .estimatedSessionsPerDay
+              }
+              recommendedDurationDays={42}
+              estimatedDurationDays={
+                preAnalysis.estimate
+                  .estimatedDurationDays
+              }
+            />
+          </div>
+        ) : null}
+
         <s-paragraph>Data availability: {preAnalysis.dataAvailability}</s-paragraph>
         <s-paragraph>
           Traffic source:{" "}
@@ -683,25 +730,25 @@ const variantComparisonData =
             : "Estimated from recent orders"}
         </s-paragraph>
 
-{preAnalysis.measuredTraffic ? (
-  <>
-    <s-paragraph>
-      Measured eligible visitors:{" "}
-      {preAnalysis.measuredTraffic.eligibleVisitors.toLocaleString()}
-    </s-paragraph>
+        {preAnalysis.measuredTraffic ? (
+          <>
+            <s-paragraph>
+              Measured eligible visitors:{" "}
+              {preAnalysis.measuredTraffic.eligibleVisitors.toLocaleString()}
+            </s-paragraph>
 
-    <s-paragraph>
-      Measurement coverage:{" "}
-      {preAnalysis.measuredTraffic.days} of{" "}
-      {preAnalysis.measuredTraffic.lookbackDays} days
-    </s-paragraph>
+            <s-paragraph>
+              Measurement coverage:{" "}
+              {preAnalysis.measuredTraffic.days} of{" "}
+              {preAnalysis.measuredTraffic.lookbackDays} days
+            </s-paragraph>
 
-    <s-paragraph>
-      Measured eligible visitors per day:{" "}
-      {preAnalysis.measuredTraffic.eligibleVisitorsPerDay.toFixed(2)}
-    </s-paragraph>
-  </>
-) : null}
+            <s-paragraph>
+              Measured eligible visitors per day:{" "}
+              {preAnalysis.measuredTraffic.eligibleVisitorsPerDay.toFixed(2)}
+            </s-paragraph>
+          </>
+        ) : null}
         
         <s-paragraph>
           Order-volume data: {preAnalysis.orderDataAvailable ? "Available" : "Unavailable"}
@@ -724,19 +771,19 @@ const variantComparisonData =
           <>
             <s-paragraph>Target conversion rate: {(preAnalysis.estimate.targetConversionRate * 100).toFixed(2)}%</s-paragraph>
             <s-paragraph>
-  {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
-    ? "Eligible visitors per day"
-    : "Estimated sessions per day"}
-  :{" "}
-  {Math.round(
-    preAnalysis.estimate.estimatedSessionsPerDay,
-  ).toLocaleString()}
-</s-paragraph>
+              {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+                ? "Eligible visitors per day"
+                : "Estimated sessions per day"}
+              :{" "}
+              {Math.round(
+                preAnalysis.estimate.estimatedSessionsPerDay,
+              ).toLocaleString()}
+            </s-paragraph>
             <s-paragraph>
-  {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
-    ? "Traffic is measured from CRO Partner product-view events for the experiment’s target product."
-    : "Traffic is inferred from recent orders and the merchant-provided baseline conversion rate."}
-</s-paragraph>
+              {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+                ? "Traffic is measured from CRO Partner product-view events for the experiment’s target product."
+                : "Traffic is inferred from recent orders and the merchant-provided baseline conversion rate."}
+            </s-paragraph>
             <s-paragraph>Required sample per variant: {preAnalysis.estimate.requiredSamplePerVariant.toLocaleString()}</s-paragraph>
             <s-paragraph>Total required sample: {preAnalysis.estimate.totalRequiredSample.toLocaleString()}</s-paragraph>
             <s-paragraph>Estimated duration: {preAnalysis.estimate.estimatedDurationDays} days</s-paragraph>
