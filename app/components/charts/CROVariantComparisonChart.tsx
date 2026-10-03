@@ -206,6 +206,13 @@ export function CROVariantComparisonChart({
 
           <Tooltip
             content={<VariantTooltip />}
+            allowEscapeViewBox={{
+              x: true,
+              y: true,
+            }}
+            wrapperStyle={{
+              zIndex: 10,
+            }}
             cursor={{
               fill: "rgba(0, 0, 0, 0.035)",
             }}

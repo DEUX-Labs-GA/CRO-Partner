@@ -215,7 +215,7 @@ const variantComparisonData =
         {
           label: controlVariantName,
           conversionRate:
-            controlResult.conversionRate,
+            controlResult.conversionRate ?? 0,
           visitors:
             controlResult.visitors,
           conversions:
@@ -224,7 +224,7 @@ const variantComparisonData =
         {
           label: treatmentVariantName,
           conversionRate:
-            treatmentResult.conversionRate,
+            treatmentResult.conversionRate ?? 0,
           visitors:
             treatmentResult.visitors,
           conversions:
@@ -331,7 +331,8 @@ const variantComparisonData =
                   totalRevenue,
                   results.currency,
                 )}
-              />
+              />           
+            </div>
 
 {variantComparisonData.length === 2 ? (
   <div
@@ -362,8 +363,7 @@ const variantComparisonData =
       data={variantComparisonData}
     />
   </div>
-) : null}              
-            </div>
+) : null}   
 
             <div
               style={{
