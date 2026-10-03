@@ -174,12 +174,14 @@ export default function AnalyticsPage() {
 
   const isProductFiltered = Boolean(selectedProduct);
 
-  const funnelChartData = funnel.steps.map(
-  (step) => ({
-    label: step.label,
-    visitors: step.visitors,
-  }),
-);
+  const funnelChartData = funnel.steps.map( 
+    (step) => ({
+      label: step.label,
+      visitors: step.visitors,
+      rateFromProductView:
+        step.rateFromProductView,
+    }),
+  );
 
   return (
     <s-page heading="Analytics">
