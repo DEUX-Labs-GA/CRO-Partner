@@ -14,6 +14,7 @@ import { loadProductFunnel } from "../services/product-funnel.server";
 import { loadTrackedProducts } from "../services/tracked-products.server";
 import { detectFunnelOpportunities } from "../services/opportunity-detection.server";
 import { saveDetectedOpportunity } from "../services/opportunity-backlog.server";
+import { CROFunnelChart } from "../components/charts/CROFunnelChart";
 
 export const action = async ({
   request,
@@ -173,6 +174,13 @@ export default function AnalyticsPage() {
 
   const isProductFiltered = Boolean(selectedProduct);
 
+  const funnelChartData = funnel.steps.map(
+  (step) => ({
+    label: step.label,
+    visitors: step.visitors,
+  }),
+);
+
   return (
     <s-page heading="Analytics">
       <s-section heading="Product">
@@ -292,6 +300,18 @@ export default function AnalyticsPage() {
           </s-paragraph>
         </s-section>
       </s-stack>
+
+      <s-section
+        heading={`Funnel visualization — last ${funnel.windowDays} days`}
+      >
+        <s-paragraph>
+          Tracked visitors remaining at each funnel stage.
+        </s-paragraph>
+
+        <CROFunnelChart
+          data={funnelChartData}
+        />
+      </s-section>
 
       <s-section heading={`Funnel — last ${funnel.windowDays} days`}>
         <s-table>
