@@ -22,6 +22,8 @@ import {
 import { calculateExperimentStatistics } 
   from "../services/experiment-statistics";
 
+import { CROVariantComparisonChart } from "../components/charts/CROVariantComparisonChart";  
+
 export const action = async ({
   request,
   params,
@@ -207,6 +209,30 @@ export default function ExperimentDetailPage() {
         })
       : null;
 
+const variantComparisonData =
+  controlResult && treatmentResult
+    ? [
+        {
+          label: controlVariantName,
+          conversionRate:
+            controlResult.conversionRate,
+          visitors:
+            controlResult.visitors,
+          conversions:
+            controlResult.purchases,
+        },
+        {
+          label: treatmentVariantName,
+          conversionRate:
+            treatmentResult.conversionRate,
+          visitors:
+            treatmentResult.visitors,
+          conversions:
+            treatmentResult.purchases,
+        },
+      ]
+    : [];      
+
   return (
     <s-page heading={experiment.name}>
       <s-section heading="Experiment details">
@@ -306,6 +332,37 @@ export default function ExperimentDetailPage() {
                   results.currency,
                 )}
               />
+
+{variantComparisonData.length === 2 ? (
+  <div
+    style={{
+      marginBottom: "24px",
+    }}
+  >
+    <div
+      style={{
+        fontWeight: 650,
+        marginBottom: "4px",
+      }}
+    >
+      Conversion rate comparison
+    </div>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#616161",
+        marginBottom: "8px",
+      }}
+    >
+      Observed purchase conversion rate for control and treatment.
+    </div>
+
+    <CROVariantComparisonChart
+      data={variantComparisonData}
+    />
+  </div>
+) : null}              
             </div>
 
             <div
