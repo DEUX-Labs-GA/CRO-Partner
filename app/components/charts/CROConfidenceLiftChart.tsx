@@ -153,7 +153,7 @@ export function CROConfidenceLiftChart({
   const domainRange = domainMax - domainMin;
 
   const chartWidth = 800;
-  const chartHeight = 180;
+  const chartHeight = 210;
   const left = 64;
   const right = 40;
   const plotWidth =
@@ -317,7 +317,7 @@ export function CROConfidenceLiftChart({
 
           <text
             x={left}
-            y={158}
+            y={184}
             textAnchor="start"
             fontSize="11"
             fontWeight="600"
@@ -328,7 +328,7 @@ export function CROConfidenceLiftChart({
 
           <text
             x={chartWidth - right}
-            y={158}
+            y={184}
             textAnchor="end"
             fontSize="11"
             fontWeight="600"
