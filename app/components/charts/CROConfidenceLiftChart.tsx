@@ -159,8 +159,8 @@ export function CROConfidenceLiftChart({
   const plotWidth =
     chartWidth - left - right;
 
-  const intervalY = 70;
-  const axisY = 122;
+  const intervalY = 78;
+  const axisY = 132;
 
   const scaleX = (value: number) =>
     left +
@@ -315,6 +315,28 @@ export function CROConfidenceLiftChart({
             No difference
           </text>
 
+          <text
+            x={left}
+            y={158}
+            textAnchor="start"
+            fontSize="11"
+            fontWeight="600"
+            fill="#616161"
+          >
+            ← Control may be better
+          </text>
+
+          <text
+            x={chartWidth - right}
+            y={158}
+            textAnchor="end"
+            fontSize="11"
+            fontWeight="600"
+            fill="#616161"
+          >
+            Treatment may be better →
+          </text>          
+
           <line
             x1={lowerX}
             x2={upperX}
@@ -352,7 +374,7 @@ export function CROConfidenceLiftChart({
 
           <text
             x={liftX}
-            y={intervalY - 18}
+            y={intervalY - 28}
             textAnchor="middle"
             fontSize="12"
             fontWeight="650"
