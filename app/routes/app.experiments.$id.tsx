@@ -28,6 +28,10 @@ import { CROFeasibilityChart } from "../components/charts/CROFeasibilityChart";
 
 import { CROConfidenceLiftChart } from "../components/charts/CROConfidenceLiftChart";
 
+import { loadExperimentExposureHistory } from "../services/experiment-exposure-history.server";
+
+import { CROExposureHistoryChart } from "../components/charts/CROExposureHistoryChart";
+
 export const action = async ({
   request,
   params,
@@ -117,9 +121,25 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           experiment.trackingKey,
         );
 
+    const exposureHistoryByDatabaseId =
+      await loadExperimentExposureHistory(
+        session.shop,
+        experiment.id,
+      );
+
+    const exposureHistory =
+      exposureHistoryByDatabaseId.length > 0 ||
+      !experiment.trackingKey
+        ? exposureHistoryByDatabaseId
+        : await loadExperimentExposureHistory(
+            session.shop,
+            experiment.trackingKey,
+          );        
+
   return {
     experiment,
     results,
+    exposureHistory,
     preAnalysis: assessPreAnalysis(
       baseline,
       {
@@ -138,8 +158,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function ExperimentDetailPage() {
-  const { experiment, preAnalysis, results } =
-    useLoaderData<typeof loader>();
+  const {
+    experiment,
+    preAnalysis,
+    results,
+    exposureHistory,
+  } = useLoaderData<typeof loader>();
   const primaryMetric = experiment.metrics[0];
   const allowedTransitions =
     getAllowedExperimentTransitions(experiment.status);
@@ -194,6 +218,31 @@ export default function ExperimentDetailPage() {
     experiment.variants.find(
       (variant) => !variant.isControl,
     )?.name ?? "Treatment";
+
+  const exposureHistoryData =
+    exposureHistory.map((point) => ({
+      date: point.date,
+
+      control:
+        (controlVariantId
+          ? point.cumulativeByVariant[
+              controlVariantId
+            ]
+          : undefined) ??
+        point.cumulativeByVariant.control ??
+        0,
+
+      treatment:
+        (treatmentVariantId
+          ? point.cumulativeByVariant[
+              treatmentVariantId
+            ]
+          : undefined) ??
+        point.cumulativeByVariant[
+          "variant-a"
+        ] ??
+        0,
+    }));    
 
   const statistics =
     controlResult && treatmentResult
@@ -337,6 +386,41 @@ const variantComparisonData =
                 )}
               />           
             </div>
+
+{exposureHistoryData.length > 0 ? (
+  <div
+    style={{
+      marginBottom: "24px",
+    }}
+  >
+    <div
+      style={{
+        fontWeight: 650,
+        marginBottom: "4px",
+      }}
+    >
+      Exposure history
+    </div>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#616161",
+        marginBottom: "8px",
+      }}
+    >
+      Cumulative exposed visitors over time for
+      control and treatment. A widening gap can
+      indicate uneven traffic allocation.
+    </div>
+
+    <CROExposureHistoryChart
+      data={exposureHistoryData}
+      controlLabel={controlVariantName}
+      treatmentLabel={treatmentVariantName}
+    />
+  </div>
+) : null}
 
 {variantComparisonData.length === 2 ? (
   <div
