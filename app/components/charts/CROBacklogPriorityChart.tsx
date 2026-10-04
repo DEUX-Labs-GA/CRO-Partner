@@ -73,7 +73,9 @@ function BacklogTooltip({
       <div
         style={{
           display: "grid",
-          gap: "4px",
+          gridTemplateColumns: "1fr 1fr",
+          columnGap: "16px",
+          rowGap: "4px",
           fontSize: "13px",
         }}
       >
@@ -172,8 +174,8 @@ export function CROBacklogPriorityChart({
   );
 
   const chartHeight = Math.max(
-    240,
-    data.length * 62,
+    340,
+    data.length * 78 + 60,
   );
 
   return (
