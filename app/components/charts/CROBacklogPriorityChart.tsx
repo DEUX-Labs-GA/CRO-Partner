@@ -174,8 +174,8 @@ export function CROBacklogPriorityChart({
   );
 
   const chartHeight = Math.max(
-    340,
-    data.length * 78 + 60,
+    400,
+    data.length * 78 + 120,
   );
 
   return (
@@ -195,7 +195,7 @@ export function CROBacklogPriorityChart({
           margin={{
             top: 10,
             right: 64,
-            bottom: 10,
+            bottom: 110,
             left: 24,
           }}
           barCategoryGap="22%"
