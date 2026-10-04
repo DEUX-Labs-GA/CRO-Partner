@@ -198,7 +198,7 @@ export function CROExposureHistoryChart({
               />
             }
             allowEscapeViewBox={{
-              x: true,
+              x: false,
               y: true,
             }}
             wrapperStyle={{
