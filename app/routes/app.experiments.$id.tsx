@@ -26,6 +26,8 @@ import { CROVariantComparisonChart } from "../components/charts/CROVariantCompar
 
 import { CROFeasibilityChart } from "../components/charts/CROFeasibilityChart";
 
+import { CROConfidenceLiftChart } from "../components/charts/CROConfidenceLiftChart";
+
 export const action = async ({
   request,
   params,
@@ -495,7 +497,26 @@ const variantComparisonData =
                   Statistical interpretation
                 </div>
 
-                
+                <CROConfidenceLiftChart
+                  absoluteLift={
+                    statistics.absoluteLift
+                  }
+                  relativeLift={
+                    statistics.relativeLift
+                  }
+                  confidenceInterval={
+                    statistics.confidenceInterval
+                  }
+                  confidenceLevel={
+                    statistics.confidenceLevel
+                  }
+                  outcome={
+                    statistics.outcome
+                  }
+                  hasCriticalValidityIssue={
+                    statistics.hasCriticalValidityIssue
+                  }
+                />            
 
                 <ResultRow
                   label="Absolute lift"
