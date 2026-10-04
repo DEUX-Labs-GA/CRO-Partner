@@ -13,6 +13,7 @@ import { authenticate } from "../shopify.server";
 import {
   calculateOpportunityPriority,
 } from "../services/opportunity-prioritization";
+import { CROBacklogPriorityChart } from "../components/charts/CROBacklogPriorityChart";
 
 const OPPORTUNITY_STATUSES = [
   "RESEARCH_NEEDED",
@@ -250,6 +251,23 @@ export default function RecommendationsPage() {
   const { opportunities } =
     useLoaderData<typeof loader>();
 
+const backlogChartData =
+  opportunities.map(
+    (opportunity) => ({
+      id: opportunity.id,
+      title: opportunity.title,
+      priorityScore:
+        opportunity.priorityScore,
+      status: opportunity.status,
+      reach: opportunity.reach,
+      impact:
+        opportunity.potentialImpact,
+      confidence:
+        opportunity.confidence,
+      effort: opportunity.effort,
+    }),
+  );    
+
   return (
     <s-page heading="CRO Backlog">
       <s-section heading="Create opportunity">
@@ -424,6 +442,18 @@ export default function RecommendationsPage() {
           Opportunities are sorted by priority score:
           Reach × Impact × Confidence ÷ Effort.
         </s-paragraph>
+
+        {backlogChartData.length > 0 ? (
+          <div
+            style={{
+              marginTop: "12px",
+            }}
+          >
+            <CROBacklogPriorityChart
+              data={backlogChartData}
+            />
+          </div>
+        ) : null}
       </s-section>
 
       {opportunities.length === 0 ? (
