@@ -34,6 +34,8 @@ import { CROExposureHistoryChart } from "../components/charts/CROExposureHistory
 
 import { CROSampleProgressChart } from "../components/charts/CROSampleProgressChart";
 
+import { CROStatisticalDistributionChart } from "../components/charts/CROStatisticalDistributionChart";
+
 export const action = async ({
   request,
   params,
@@ -618,7 +620,7 @@ preAnalysis.estimate ? (
               ))}
             </div>
 
-            {statistics ? (
+            {statistics && controlResult && treatmentResult ? (
               <div
                 style={{
                   border: "1px solid #dcdcdc",
@@ -656,7 +658,58 @@ preAnalysis.estimate ? (
                   hasCriticalValidityIssue={
                     statistics.hasCriticalValidityIssue
                   }
-                />            
+                />   
+                
+                    <div
+  style={{
+    marginTop: "18px",
+    marginBottom: "20px",
+  }}
+>
+  <div
+    style={{
+      fontWeight: 650,
+      marginBottom: "4px",
+    }}
+  >
+    Statistical distribution
+  </div>
+
+  <div
+    style={{
+      fontSize: "13px",
+      color: "#616161",
+      marginBottom: "8px",
+      lineHeight: 1.5,
+    }}
+  >
+    Approximate conversion-rate distributions for
+    control and treatment. More overlap means more
+    uncertainty about which experience is actually
+    better.
+  </div>
+
+  <CROStatisticalDistributionChart
+    controlVisitors={
+      controlResult.visitors
+    }
+    controlConversions={
+      controlResult.purchases
+    }
+    treatmentVisitors={
+      treatmentResult.visitors
+    }
+    treatmentConversions={
+      treatmentResult.purchases
+    }
+    controlLabel={
+      controlVariantName
+    }
+    treatmentLabel={
+      treatmentVariantName
+    }
+  />
+</div>     
 
                 <ResultRow
                   label="Absolute lift"
