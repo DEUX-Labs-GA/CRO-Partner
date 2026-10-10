@@ -391,6 +391,20 @@ export function CROStatisticalDistributionChart({
         uncertainty about which variant is truly
         better.
       </div>
+
+      <div
+        style={{
+          marginTop: "8px",
+          fontSize: "12px",
+          lineHeight: 1.5,
+          fontWeight: 600,
+          color: "#4a4a4a",
+        }}
+      >
+        Distribution view available does not mean
+        the experiment has reached its planned
+        sample size.
+      </div>
     </div>
   );
 }
