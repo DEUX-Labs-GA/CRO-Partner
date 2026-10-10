@@ -32,6 +32,8 @@ import { loadExperimentExposureHistory } from "../services/experiment-exposure-h
 
 import { CROExposureHistoryChart } from "../components/charts/CROExposureHistoryChart";
 
+import { CROSampleProgressChart } from "../components/charts/CROSampleProgressChart";
+
 export const action = async ({
   request,
   params,
@@ -284,7 +286,21 @@ const variantComparisonData =
             treatmentResult.purchases,
         },
       ]
-    : [];      
+    : [];  
+    
+    const sampleProgressData =
+      controlResult && treatmentResult
+        ? [
+            {
+              label: controlVariantName,
+              visitors: controlResult.visitors,
+            },
+            {
+              label: treatmentVariantName,
+              visitors: treatmentResult.visitors,
+            },
+          ]
+        : [];    
 
   return (
     <s-page heading={experiment.name}>
@@ -418,6 +434,46 @@ const variantComparisonData =
       data={exposureHistoryData}
       controlLabel={controlVariantName}
       treatmentLabel={treatmentVariantName}
+    />
+  </div>
+) : null}
+
+{sampleProgressData.length === 2 &&
+preAnalysis.estimate ? (
+  <div
+    style={{
+      marginBottom: "24px",
+    }}
+  >
+    <div
+      style={{
+        fontWeight: 650,
+        marginBottom: "4px",
+      }}
+    >
+      Sample progress
+    </div>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#616161",
+        marginBottom: "8px",
+      }}
+    >
+      Progress toward the planned sample size for
+      each variant. Reaching the target does not
+      guarantee a winner, but it indicates that the
+      experiment has collected the planned amount of
+      traffic for analysis.
+    </div>
+
+    <CROSampleProgressChart
+      data={sampleProgressData}
+      requiredSamplePerVariant={
+        preAnalysis.estimate
+          .requiredSamplePerVariant
+      }
     />
   </div>
 ) : null}
