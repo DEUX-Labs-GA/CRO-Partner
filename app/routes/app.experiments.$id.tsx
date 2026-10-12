@@ -661,62 +661,157 @@ preAnalysis.estimate ? (
                 />   
                 
                     <div
-  style={{
-    marginTop: "18px",
-    marginBottom: "20px",
-  }}
->
-  <div
-    style={{
-      fontWeight: 650,
-      marginBottom: "4px",
-    }}
-  >
-    Statistical distribution
-  </div>
+                    style={{
+                      marginTop: "18px",
+                      marginBottom: "20px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 650,
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Statistical distribution
+                    </div>
 
-  <div
-    style={{
-      fontSize: "13px",
-      color: "#616161",
-      marginBottom: "8px",
-      lineHeight: 1.5,
-    }}
-  >
-    Approximate conversion-rate distributions for
-    control and treatment. More overlap means more
-    uncertainty about which experience is actually
-    better.
-  </div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "#616161",
+                        marginBottom: "8px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Approximate conversion-rate distributions for
+                      control and treatment. More overlap means more
+                      uncertainty about which experience is actually
+                      better.
+                    </div>
 
-  <CROStatisticalDistributionChart
-    controlVisitors={
-      controlResult.visitors
-    }
-    controlConversions={
-      controlResult.purchases
-    }
-    treatmentVisitors={
-      treatmentResult.visitors
-    }
-    treatmentConversions={
-      treatmentResult.purchases
-    }
-    controlLabel={
-      controlVariantName
-    }
-    treatmentLabel={
-      treatmentVariantName
-    }
-  />
-</div>     
+                    <CROStatisticalDistributionChart
+                      controlVisitors={
+                        controlResult.visitors
+                      }
+                      controlConversions={
+                        controlResult.purchases
+                      }
+                      treatmentVisitors={
+                        treatmentResult.visitors
+                      }
+                      treatmentConversions={
+                        treatmentResult.purchases
+                      }
+                      controlLabel={
+                        controlVariantName
+                      }
+                      treatmentLabel={
+                        treatmentVariantName
+                      }
+                    />
+                  </div>     
 
-                <ResultRow
-                  label="Absolute lift"
-                  value={formatSignedPercentagePoints(
-                    statistics.absoluteLift,
-                  )}
-                />
+                  <details
+                    style={{
+                      marginTop: "16px",
+                      borderTop: "1px solid #e2e2e2",
+                      paddingTop: "14px",
+                    }}
+                  >
+                    <summary
+                      style={{
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: 650,
+                        color: "#4a4a4a",
+                      }}
+                    >
+                      Technical details
+                    </summary>
+
+                    <div
+                      style={{
+                        marginTop: "12px",
+                      }}
+                    >
+                      <ResultRow
+                        label="Absolute lift"
+                        value={formatSignedPercentagePoints(
+                          statistics.absoluteLift,
+                        )}
+                      />
+
+                      <s-paragraph>Data availability: {preAnalysis.dataAvailability}</s-paragraph>
+                      <s-paragraph>
+                        Traffic source:{" "}
+                        {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+                          ? "Measured eligible product visitors"
+                          : "Estimated from recent orders"}
+                      </s-paragraph>
+
+                      {preAnalysis.measuredTraffic ? (
+                        <>
+                          <s-paragraph>
+                            Measured eligible visitors:{" "}
+                            {preAnalysis.measuredTraffic.eligibleVisitors.toLocaleString()}
+                          </s-paragraph>
+
+                          <s-paragraph>
+                            Measurement coverage:{" "}
+                            {preAnalysis.measuredTraffic.days} of{" "}
+                            {preAnalysis.measuredTraffic.lookbackDays} days
+                          </s-paragraph>
+
+                          <s-paragraph>
+                            Measured eligible visitors per day:{" "}
+                            {preAnalysis.measuredTraffic.eligibleVisitorsPerDay.toFixed(2)}
+                          </s-paragraph>
+                        </>
+                      ) : null}
+                      
+                      <s-paragraph>
+                        Order-volume data: {preAnalysis.orderDataAvailable ? "Available" : "Unavailable"}
+                      </s-paragraph>
+                      <s-paragraph>
+                        Recent order count ({preAnalysis.orderWindow.label}): {preAnalysis.recentOrderCount ?? "Unavailable"}
+                      </s-paragraph>
+                      <s-paragraph>
+                        Observation window: {preAnalysis.orderWindow.days} days
+                      </s-paragraph>
+                      <s-paragraph>
+                        Orders per day: {preAnalysis.ordersPerDay?.toFixed(2) ?? "Unavailable"}
+                      </s-paragraph>
+                      <s-paragraph>Product count: {preAnalysis.productCount}</s-paragraph>
+                      <s-paragraph>
+                        Baseline conversion rate (merchant-provided): {preAnalysis.estimate ? `${(preAnalysis.estimate.baselineConversionRate * 100).toFixed(2)}%` : experiment.baselineConversionRate ? `${(experiment.baselineConversionRate * 100).toFixed(2)}%` : "Missing"}
+                      </s-paragraph>
+                      <s-paragraph>MDE: {(experiment.minimumDetectableEffect * 100).toFixed(0)}% relative improvement</s-paragraph>
+                      {preAnalysis.estimate ? (
+                        <>
+                          <s-paragraph>Target conversion rate: {(preAnalysis.estimate.targetConversionRate * 100).toFixed(2)}%</s-paragraph>
+                          <s-paragraph>
+                            {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+                              ? "Eligible visitors per day"
+                              : "Estimated sessions per day"}
+                            :{" "}
+                            {Math.round(
+                              preAnalysis.estimate.estimatedSessionsPerDay,
+                            ).toLocaleString()}
+                          </s-paragraph>
+                          <s-paragraph>
+                            {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
+                              ? "Traffic is measured from CRO Partner product-view events for the experiment’s target product."
+                              : "Traffic is inferred from recent orders and the merchant-provided baseline conversion rate."}
+                          </s-paragraph>
+                          <s-paragraph>Required sample per variant: {preAnalysis.estimate.requiredSamplePerVariant.toLocaleString()}</s-paragraph>
+                          <s-paragraph>Total required sample: {preAnalysis.estimate.totalRequiredSample.toLocaleString()}</s-paragraph>
+                          <s-paragraph>Estimated duration: {preAnalysis.estimate.estimatedDurationDays} days</s-paragraph>
+                        </>
+                      ) : null}
+                      <s-paragraph>Readiness: {preAnalysis.readiness}</s-paragraph>
+                      <s-paragraph>{preAnalysis.explanation}</s-paragraph>               
+                    </div>
+                  </details>                
 
                 <ResultRow
                   label="Relative lift"
@@ -936,75 +1031,6 @@ preAnalysis.estimate ? (
           </div>
         ) : null}
 
-        <s-paragraph>Data availability: {preAnalysis.dataAvailability}</s-paragraph>
-        <s-paragraph>
-          Traffic source:{" "}
-          {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
-            ? "Measured eligible product visitors"
-            : "Estimated from recent orders"}
-        </s-paragraph>
-
-        {preAnalysis.measuredTraffic ? (
-          <>
-            <s-paragraph>
-              Measured eligible visitors:{" "}
-              {preAnalysis.measuredTraffic.eligibleVisitors.toLocaleString()}
-            </s-paragraph>
-
-            <s-paragraph>
-              Measurement coverage:{" "}
-              {preAnalysis.measuredTraffic.days} of{" "}
-              {preAnalysis.measuredTraffic.lookbackDays} days
-            </s-paragraph>
-
-            <s-paragraph>
-              Measured eligible visitors per day:{" "}
-              {preAnalysis.measuredTraffic.eligibleVisitorsPerDay.toFixed(2)}
-            </s-paragraph>
-          </>
-        ) : null}
-        
-        <s-paragraph>
-          Order-volume data: {preAnalysis.orderDataAvailable ? "Available" : "Unavailable"}
-        </s-paragraph>
-        <s-paragraph>
-          Recent order count ({preAnalysis.orderWindow.label}): {preAnalysis.recentOrderCount ?? "Unavailable"}
-        </s-paragraph>
-        <s-paragraph>
-          Observation window: {preAnalysis.orderWindow.days} days
-        </s-paragraph>
-        <s-paragraph>
-          Orders per day: {preAnalysis.ordersPerDay?.toFixed(2) ?? "Unavailable"}
-        </s-paragraph>
-        <s-paragraph>Product count: {preAnalysis.productCount}</s-paragraph>
-        <s-paragraph>
-          Baseline conversion rate (merchant-provided): {preAnalysis.estimate ? `${(preAnalysis.estimate.baselineConversionRate * 100).toFixed(2)}%` : experiment.baselineConversionRate ? `${(experiment.baselineConversionRate * 100).toFixed(2)}%` : "Missing"}
-        </s-paragraph>
-        <s-paragraph>MDE: {(experiment.minimumDetectableEffect * 100).toFixed(0)}% relative improvement</s-paragraph>
-        {preAnalysis.estimate ? (
-          <>
-            <s-paragraph>Target conversion rate: {(preAnalysis.estimate.targetConversionRate * 100).toFixed(2)}%</s-paragraph>
-            <s-paragraph>
-              {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
-                ? "Eligible visitors per day"
-                : "Estimated sessions per day"}
-              :{" "}
-              {Math.round(
-                preAnalysis.estimate.estimatedSessionsPerDay,
-              ).toLocaleString()}
-            </s-paragraph>
-            <s-paragraph>
-              {preAnalysis.trafficSource === "MEASURED_PRODUCT_VISITORS"
-                ? "Traffic is measured from CRO Partner product-view events for the experiment’s target product."
-                : "Traffic is inferred from recent orders and the merchant-provided baseline conversion rate."}
-            </s-paragraph>
-            <s-paragraph>Required sample per variant: {preAnalysis.estimate.requiredSamplePerVariant.toLocaleString()}</s-paragraph>
-            <s-paragraph>Total required sample: {preAnalysis.estimate.totalRequiredSample.toLocaleString()}</s-paragraph>
-            <s-paragraph>Estimated duration: {preAnalysis.estimate.estimatedDurationDays} days</s-paragraph>
-          </>
-        ) : null}
-        <s-paragraph>Readiness: {preAnalysis.readiness}</s-paragraph>
-        <s-paragraph>{preAnalysis.explanation}</s-paragraph>
       </s-section>
     </s-page>
   );
