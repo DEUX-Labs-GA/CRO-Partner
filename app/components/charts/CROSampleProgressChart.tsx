@@ -1,3 +1,5 @@
+import { CROChartColors } from "./cro-chart-theme";
+
 export type CROSampleProgressItem = {
   label: string;
   visitors: number;
@@ -90,7 +92,7 @@ export function CROSampleProgressChart({
                 width: "100%",
                 height: "14px",
                 borderRadius: "999px",
-                background: "#ececec",
+                background: CROChartColors.neutralFill,
                 overflow: "hidden",
               }}
             >
@@ -103,8 +105,8 @@ export function CROSampleProgressChart({
                     item.label
                       .toLowerCase()
                       .includes("control")
-                      ? "#616161"
-                      : "#1473e6",
+                      ? CROChartColors.control
+                      : CROChartColors.treatment,
                   minWidth:
                     item.visitors > 0
                       ? "4px"
@@ -121,7 +123,7 @@ export function CROSampleProgressChart({
                 gap: "16px",
                 marginTop: "7px",
                 fontSize: "12px",
-                color: "#616161",
+                color: CROChartColors.textSecondary,
               }}
             >
               <span>

@@ -8,6 +8,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { CROChartColors } from "./cro-chart-theme";
+
 const MINIMUM_SAMPLE_PER_VARIANT = 30;
 
 type DistributionPoint = {
@@ -297,7 +299,7 @@ export function CROStatisticalDistributionChart({
           <CartesianGrid
             strokeDasharray="3 3"
             vertical={false}
-            stroke="#e6e6e6"
+            stroke={CROChartColors.grid}
           />
 
           <XAxis
@@ -309,7 +311,7 @@ export function CROStatisticalDistributionChart({
               fontSize: 12,
             }}
             axisLine={{
-              stroke: "#b8b8b8",
+              stroke: CROChartColors.axis,
             }}
             tickLine={false}
           />
@@ -335,8 +337,8 @@ export function CROStatisticalDistributionChart({
             type="monotone"
             dataKey="control"
             name={controlLabel}
-            stroke="#616161"
-            fill="#d9d9d9"
+            stroke={CROChartColors.control}
+            fill={CROChartColors.controlFill}
             fillOpacity={0.45}
             strokeWidth={2}
           />
@@ -345,8 +347,8 @@ export function CROStatisticalDistributionChart({
             type="monotone"
             dataKey="treatment"
             name={treatmentLabel}
-            stroke="#1473e6"
-            fill="#1473e6"
+            stroke={CROChartColors.treatment}
+            fill={CROChartColors.treatment}
             fillOpacity={0.18}
             strokeWidth={2}
           />
@@ -381,7 +383,7 @@ export function CROStatisticalDistributionChart({
           marginTop: "10px",
           fontSize: "12px",
           lineHeight: 1.5,
-          color: "#616161",
+          color: CROChartColors.textSecondary,
         }}
       >
         These curves are normal-approximation

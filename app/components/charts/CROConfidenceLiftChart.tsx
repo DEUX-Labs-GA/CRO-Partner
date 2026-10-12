@@ -1,3 +1,10 @@
+import {
+  CROChartColors,
+  getSemanticColor,
+  getSemanticFill,
+  type CROSemanticState,
+} from "./cro-chart-theme";
+
 type ExperimentOutcome =
   | "INSUFFICIENT_DATA"
   | "INCONCLUSIVE"
@@ -121,6 +128,33 @@ function getRecommendation({
   }
 }
 
+function getSemanticState({
+  outcome,
+  hasCriticalValidityIssue,
+}: {
+  outcome: ExperimentOutcome;
+  hasCriticalValidityIssue: boolean;
+}): CROSemanticState {
+  if (hasCriticalValidityIssue) {
+    return "negative";
+  }
+
+  switch (outcome) {
+    case "TREATMENT_LEADING":
+      return "positive";
+
+    case "CONTROL_LEADING":
+      return "negative";
+
+    case "INSUFFICIENT_DATA":
+      return "warning";
+
+    case "INCONCLUSIVE":
+    case "NO_DIFFERENCE":
+      return "neutral";
+  }
+}
+
 export function CROConfidenceLiftChart({
   absoluteLift,
   relativeLift,
@@ -190,21 +224,33 @@ export function CROConfidenceLiftChart({
   const confidencePercent =
     Math.round(confidenceLevel * 100);
 
+  const semanticState = getSemanticState({
+    outcome,
+    hasCriticalValidityIssue,
+  });
+
+  const semanticColor =
+    getSemanticColor(semanticState);
+
+  const semanticFill =
+    getSemanticFill(semanticState);    
+
   return (
     <div
       style={{
         marginTop: "14px",
         marginBottom: "20px",
-        border: "1px solid #dcdcdc",
         borderRadius: "12px",
-        background: "#ffffff",
+        border: `1px solid ${CROChartColors.border}`,
+        background: CROChartColors.surface,        
         padding: "18px",
       }}
     >
       <div
         style={{
-          fontSize: "12px",
-          color: "#616161",
+          color: semanticColor,
+          fontSize: "18px",
+          fontWeight: 650,  
           marginBottom: "4px",
         }}
       >
@@ -299,7 +345,7 @@ export function CROConfidenceLiftChart({
             x2={zeroX}
             y1={24}
             y2={axisY}
-            stroke="#8a8a8a"
+            stroke={semanticColor}
             strokeWidth="2"
             strokeDasharray="5 5"
           />
@@ -342,7 +388,7 @@ export function CROConfidenceLiftChart({
             x2={upperX}
             y1={intervalY}
             y2={intervalY}
-            stroke="#8a8a8a"
+            stroke={semanticColor}
             strokeWidth="8"
             strokeLinecap="round"
           />
@@ -369,7 +415,7 @@ export function CROConfidenceLiftChart({
             cx={liftX}
             cy={intervalY}
             r="8"
-            fill="#303030"
+            fill={semanticColor}
           />
 
           <text
@@ -427,13 +473,16 @@ export function CROConfidenceLiftChart({
         style={{
           marginTop: "6px",
           paddingTop: "14px",
-          borderTop: "1px solid #eeeeee",
+          borderTop: `1px solid ${CROChartColors.border}`,
+          background: semanticFill,
+          borderRadius: "10px",
+          padding: "14px",
         }}
       >
         <div
           style={{
             fontSize: "12px",
-            color: "#616161",
+            color: semanticColor,
             marginBottom: "4px",
           }}
         >

@@ -9,6 +9,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { CROChartColors } from "./cro-chart-theme";
+
 export type CROExposureHistoryItem = {
   date: string;
   control: number;
@@ -160,7 +162,7 @@ export function CROExposureHistoryChart({
           <CartesianGrid
             strokeDasharray="3 3"
             vertical={false}
-            stroke="#e6e6e6"
+            stroke={CROChartColors.grid}
           />
 
           <XAxis
@@ -170,7 +172,7 @@ export function CROExposureHistoryChart({
               fontSize: 12,
             }}
             axisLine={{
-              stroke: "#b8b8b8",
+              stroke: CROChartColors.axis,
             }}
             tickLine={false}
             minTickGap={28}
@@ -220,11 +222,11 @@ export function CROExposureHistoryChart({
           <Line
             type="monotone"
             dataKey="control"
-            stroke="#616161"
+            stroke={CROChartColors.control}
             strokeWidth={3}
             dot={{
               r: 3,
-              fill: "#616161",
+              fill: CROChartColors.control,
             }}
             activeDot={{
               r: 5,
@@ -234,11 +236,11 @@ export function CROExposureHistoryChart({
           <Line
             type="monotone"
             dataKey="treatment"
-            stroke="#1473e6"
+            stroke={CROChartColors.treatment}
             strokeWidth={3}
             dot={{
               r: 3,
-              fill: "#1473e6",
+              fill: CROChartColors.treatment,
             }}
             activeDot={{
               r: 5,
