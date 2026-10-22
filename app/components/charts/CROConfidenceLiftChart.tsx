@@ -135,6 +135,10 @@ function getSemanticState({
   outcome: ExperimentOutcome;
   hasCriticalValidityIssue: boolean;
 }): CROSemanticState {
+  if (outcome === "INSUFFICIENT_DATA") {
+    return "warning";
+  }
+
   if (hasCriticalValidityIssue) {
     return "negative";
   }
@@ -145,9 +149,6 @@ function getSemanticState({
 
     case "CONTROL_LEADING":
       return "negative";
-
-    case "INSUFFICIENT_DATA":
-      return "warning";
 
     case "INCONCLUSIVE":
     case "NO_DIFFERENCE":
