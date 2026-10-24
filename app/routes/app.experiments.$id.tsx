@@ -36,6 +36,8 @@ import { CROSampleProgressChart } from "../components/charts/CROSampleProgressCh
 
 import { CROStatisticalDistributionChart } from "../components/charts/CROStatisticalDistributionChart";
 
+import { recommendExperimentResult } from "../services/experiment-recommendations";
+
 export const action = async ({
   request,
   params,
@@ -265,6 +267,33 @@ export default function ExperimentDetailPage() {
             results?.excludedAmbiguousVisitors ?? 0,
         })
       : null;
+
+    const plannedSampleReached =
+  Boolean(
+    preAnalysis.estimate &&
+      controlResult &&
+      treatmentResult &&
+      controlResult.visitors >=
+        preAnalysis.estimate.requiredSamplePerVariant &&
+      treatmentResult.visitors >=
+        preAnalysis.estimate.requiredSamplePerVariant,
+  );
+
+const experimentFeasible =
+  preAnalysis.readiness === "READY_FOR_ESTIMATION"
+    ? true
+    : preAnalysis.readiness === "LOW_VOLUME"
+      ? false
+      : null;
+
+const resultRecommendation =
+  statistics
+    ? recommendExperimentResult({
+        statistics,
+        plannedSampleReached,
+        experimentFeasible,
+      })
+    : null;
 
 const variantComparisonData =
   controlResult && treatmentResult
@@ -659,6 +688,48 @@ preAnalysis.estimate ? (
                     statistics.hasCriticalValidityIssue
                   }
                 />   
+
+                {resultRecommendation ? (
+                  <div
+                    style={{
+                      marginBottom: "20px",
+                      border: "1px solid #dcdcdc",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      background: "#ffffff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#616161",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      CRO Partner recommendation
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 650,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {resultRecommendation.title}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        lineHeight: 1.55,
+                        color: "#4a4a4a",
+                      }}
+                    >
+                      {resultRecommendation.rationale}
+                    </div>
+                  </div>
+                ) : null}                
                 
                     <div
                     style={{
