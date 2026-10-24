@@ -9,6 +9,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { CROChartColors } from "./cro-chart-theme";
+
 export type CROBacklogPriorityItem = {
   id: string;
   title: string;
@@ -53,9 +55,9 @@ function BacklogTooltip({
     <div
       style={{
         minWidth: "220px",
-        border: "1px solid #dcdcdc",
+        border: `1px solid ${CROChartColors.border}`,
         borderRadius: "10px",
-        background: "#ffffff",
+        background: CROChartColors.surface,
         padding: "10px 12px",
         boxShadow:
           "0 4px 14px rgba(0, 0, 0, 0.08)",
@@ -203,7 +205,7 @@ export function CROBacklogPriorityChart({
           <CartesianGrid
             strokeDasharray="3 3"
             horizontal={false}
-            stroke="#e6e6e6"
+            stroke={CROChartColors.grid}
           />
 
           <XAxis
@@ -218,7 +220,7 @@ export function CROBacklogPriorityChart({
               fontSize: 12,
             }}
             axisLine={{
-              stroke: "#b8b8b8",
+              stroke: CROChartColors.axis,
             }}
             tickLine={false}
           />
@@ -252,7 +254,7 @@ export function CROBacklogPriorityChart({
 
           <Bar
             dataKey="priorityScore"
-            fill="#303030"
+            fill={CROChartColors.textPrimary}
             radius={[0, 7, 7, 0]}
             maxBarSize={42}
           >

@@ -9,6 +9,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { CROChartColors } from "./cro-chart-theme";
+
 export type CROFeasibilityChartProps = {
   requiredSample: number;
   visitorsPerDay: number;
@@ -54,9 +56,9 @@ function FeasibilityTooltip({
     <div
       style={{
         minWidth: "210px",
-        border: "1px solid #dcdcdc",
+        border: `1px solid ${CROChartColors.border}`,
         borderRadius: "10px",
-        background: "#ffffff",
+        background: CROChartColors.surface,
         padding: "10px 12px",
         boxShadow:
           "0 4px 14px rgba(0, 0, 0, 0.08)",
@@ -196,7 +198,7 @@ export function CROFeasibilityChart({
           <div
             style={{
               fontSize: "12px",
-              color: "#616161",
+              color: CROChartColors.textSecondary,
               marginBottom: "4px",
             }}
           >
@@ -224,7 +226,7 @@ export function CROFeasibilityChart({
           <div
             style={{
               fontSize: "12px",
-              color: "#616161",
+              color: CROChartColors.textSecondary,
               marginBottom: "4px",
             }}
           >
@@ -255,7 +257,7 @@ export function CROFeasibilityChart({
           <div
             style={{
               fontSize: "12px",
-              color: "#616161",
+              color: CROChartColors.textSecondary,
               marginBottom: "4px",
             }}
           >
@@ -295,7 +297,7 @@ export function CROFeasibilityChart({
             <CartesianGrid
               strokeDasharray="3 3"
               horizontal={false}
-              stroke="#e6e6e6"
+              stroke={CROChartColors.grid}
             />
 
             <XAxis
@@ -310,7 +312,7 @@ export function CROFeasibilityChart({
                 fontSize: 12,
               }}
               axisLine={{
-                stroke: "#b8b8b8",
+                stroke: CROChartColors.axis,
               }}
               tickLine={false}
             />
@@ -346,7 +348,7 @@ export function CROFeasibilityChart({
 
             <Bar
               dataKey="percentage"
-              fill="#303030"
+              fill={CROChartColors.textPrimary}
               radius={[0, 7, 7, 0]}
               maxBarSize={42}
             >
