@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { summarizeProductFunnel } from "./product-funnel.server";
+import {
+  compareProductFunnels,
+  summarizeProductFunnel,
+} from "./product-funnel.server";
 
 const windowStart = new Date("2026-09-01T00:00:00.000Z");
 
@@ -198,4 +201,95 @@ describe("product funnel", () => {
     ]);
     expect(result.totalRevenue).toBe(0);
   });
+  it("reports the requested funnel window", () => {
+    const result = summarizeProductFunnel(
+      [
+        event(
+          "product_viewed",
+          "visitor-1",
+          "2026-09-10T10:00:00Z",
+        ),
+      ],
+      windowStart,
+      {
+        windowDays: 7,
+      },
+    );
+
+    expect(result.windowDays).toBe(7);
+  });
+
+  it("compares current funnel performance with the previous period", () => {
+  const previous = summarizeProductFunnel(
+    [
+      event("product_viewed", "previous-1", "2026-09-10T10:00:00Z"),
+      event("product_viewed", "previous-2", "2026-09-10T10:00:01Z"),
+      event("product_added_to_cart", "previous-1", "2026-09-10T10:01:00Z"),
+    ],
+    windowStart,
+  );
+
+  const current = summarizeProductFunnel(
+    [
+      event("product_viewed", "current-1", "2026-09-20T10:00:00Z"),
+      event("product_viewed", "current-2", "2026-09-20T10:00:01Z"),
+      event("product_viewed", "current-3", "2026-09-20T10:00:02Z"),
+      event("product_added_to_cart", "current-1", "2026-09-20T10:01:00Z"),
+      event("product_added_to_cart", "current-2", "2026-09-20T10:01:01Z"),
+    ],
+    windowStart,
+  );
+
+  const comparison = compareProductFunnels(
+    current,
+    previous,
+  );
+
+  expect(comparison.trackedVisitors).toEqual({
+    current: 3,
+    previous: 2,
+    absoluteChange: 1,
+    relativeChange: 0.5,
+  });
+
+  expect(
+    comparison.steps[1].visitors,
+  ).toEqual({
+    current: 2,
+    previous: 1,
+    absoluteChange: 1,
+    relativeChange: 1,
+  });
+});
+
+it("does not invent a relative percentage when the previous value is zero", () => {
+  const previous = summarizeProductFunnel(
+    [],
+    windowStart,
+  );
+
+  const current = summarizeProductFunnel(
+    [
+      event(
+        "product_viewed",
+        "visitor-1",
+        "2026-09-20T10:00:00Z",
+      ),
+    ],
+    windowStart,
+  );
+
+  const comparison = compareProductFunnels(
+    current,
+    previous,
+  );
+
+  expect(comparison.trackedVisitors).toEqual({
+    current: 1,
+    previous: 0,
+    absoluteChange: 1,
+    relativeChange: null,
+  });
+});
+
 });

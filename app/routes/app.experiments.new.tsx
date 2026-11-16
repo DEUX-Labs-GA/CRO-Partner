@@ -24,8 +24,111 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const trackedProducts = await loadTrackedProducts(session.shop);
 
+  const url = new URL(request.url);
+  const followUpFrom = url.searchParams.get("followUpFrom");
+  const followUpMode = url.searchParams.get("followUpMode");
+
+  let followUpDefaults: {
+    sourceExperimentId: string;
+    sourceExperimentName: string;
+    mode: "RETEST" | "ITERATE";
+    name: string;
+    hypothesis: string;
+    targetProductId: string;
+    metricName: string;
+    metricType: string;
+    target: string;
+    changeType: string;
+    controlName: string;
+    treatmentName: string;
+    changeValue: string;
+    baselineConversionRate: string;
+    minimumDetectableEffect: string;
+    significanceLevel: string;
+    statisticalPower: string;
+  } | null = null;
+
+  if (
+    followUpFrom &&
+    (followUpMode === "RETEST" || followUpMode === "ITERATE")
+  ) {
+    const sourceExperiment = await prisma.experiment.findFirst({
+      where: {
+        id: followUpFrom,
+        shop: session.shop,
+      },
+      include: {
+        variants: {
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+        metrics: {
+          where: {
+            isPrimary: true,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (sourceExperiment) {
+      const controlVariant =
+        sourceExperiment.variants.find(
+          (variant) => variant.isControl,
+        ) ?? null;
+
+      const treatmentVariant =
+        sourceExperiment.variants.find(
+          (variant) => !variant.isControl,
+        ) ?? null;
+
+      const primaryMetric =
+        sourceExperiment.metrics[0] ?? null;
+
+      if (controlVariant && treatmentVariant && primaryMetric) {
+        followUpDefaults = {
+          sourceExperimentId: sourceExperiment.id,
+          sourceExperimentName: sourceExperiment.name,
+          mode: followUpMode,
+          name:
+            followUpMode === "RETEST"
+              ? `${sourceExperiment.name} — Retest`
+              : `${sourceExperiment.name} — Iteration`,
+          hypothesis: sourceExperiment.hypothesis,
+          targetProductId:
+            sourceExperiment.targetProductId ?? "",
+          metricName: primaryMetric.name,
+          metricType: primaryMetric.type,
+          target: treatmentVariant.target ?? "PRODUCT_TITLE",
+          changeType:
+            treatmentVariant.changeType ?? "REPLACE_TEXT",
+          controlName: controlVariant.name,
+          treatmentName: treatmentVariant.name,
+          changeValue:
+            treatmentVariant.changeValue ??
+            treatmentVariant.titleOverride ??
+            "",
+          baselineConversionRate: String(
+            (sourceExperiment.baselineConversionRate ?? 0.05) * 100,
+          ),
+          minimumDetectableEffect: String(
+            sourceExperiment.minimumDetectableEffect * 100,
+          ),
+          significanceLevel: String(
+            sourceExperiment.significanceLevel * 100,
+          ),
+          statisticalPower: String(
+            sourceExperiment.statisticalPower * 100,
+          ),
+        };
+      }
+    }
+  }
+
   return {
     trackedProducts,
+    followUpDefaults,
   };
 };
 
@@ -209,14 +312,59 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function NewExperiment() {
-  const { trackedProducts } =
-    useLoaderData<typeof loader>();
+const {
+  trackedProducts,
+  followUpDefaults,
+} = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
 
   return (
     <s-page heading="Create experiment">
       <s-section heading="Experiment details">
+        {followUpDefaults ? (
+  <div
+    style={{
+      marginBottom: "20px",
+      padding: "14px 16px",
+      border: "1px solid #c8c8c8",
+      borderRadius: "10px",
+      background: "#f7f7f7",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "12px",
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
+        marginBottom: "5px",
+      }}
+    >
+      {followUpDefaults.mode === "RETEST"
+        ? "Retest follow-up"
+        : "Iteration follow-up"}
+    </div>
+
+    <div
+      style={{
+        fontSize: "13px",
+        lineHeight: 1.5,
+      }}
+    >
+      Starting from{" "}
+      <strong>
+        {followUpDefaults.sourceExperimentName}
+      </strong>
+      .{" "}
+      {followUpDefaults.mode === "RETEST"
+        ? "Use the inherited setup as a reference, but reconsider the hypothesis, treatment, traffic assumptions, and detectable effect before saving."
+        : "Use the inherited experiment as a starting point for the next hypothesis. Update the hypothesis and treatment so the new experiment meaningfully tests a new iteration."}
+      {" "}
+      Nothing will be launched automatically.
+    </div>
+  </div>
+) : null}
         {actionData?.error ? (
           <p style={{ color: "red" }}>
             {actionData.error}
@@ -248,20 +396,23 @@ export default function NewExperiment() {
           <s-text-field
             label="Experiment name"
             name="name"
+            value={followUpDefaults?.name ?? ""}
             required
           />
 
           <s-text-area
             label="Hypothesis"
             name="hypothesis"
+            value={followUpDefaults?.hypothesis ?? ""}
             required
           />
 
-          <s-select
-            label="Target product"
-            name="targetProductId"
-            required
-          >
+            <s-select
+              label="Target product"
+              name="targetProductId"
+              value={followUpDefaults?.targetProductId ?? ""}
+              required
+            >
             <s-option value="">
               Select a product
             </s-option>
@@ -279,14 +430,16 @@ export default function NewExperiment() {
           <s-text-field
             label="Primary metric name"
             name="metricName"
+            value={followUpDefaults?.metricName ?? ""}
             required
           />
 
-          <s-select
-            label="Primary metric type"
-            name="metricType"
-            required
-          >
+            <s-select
+              label="Primary metric type"
+              name="metricType"
+              value={followUpDefaults?.metricType ?? "CONVERSION_RATE"}
+              required
+            >
             <s-option value="CONVERSION_RATE">
               Conversion rate
             </s-option>
@@ -301,11 +454,12 @@ export default function NewExperiment() {
             </s-option>
           </s-select>
 
-          <s-select
-            label="Experiment target"
-            name="target"
-            required
-          >
+            <s-select
+              label="Experiment target"
+              name="target"
+              value={followUpDefaults?.target ?? "PRODUCT_TITLE"}
+              required
+            >
             <s-option value="PRODUCT_TITLE">
               Product title
             </s-option>
@@ -317,26 +471,33 @@ export default function NewExperiment() {
           <input
             type="hidden"
             name="changeType"
-            value="REPLACE_TEXT"
+            value={followUpDefaults?.changeType ?? "REPLACE_TEXT"}
           />
 
           <s-text-field
             label="Control variant name"
             name="controlName"
-            value="Original content"
+            value={
+              followUpDefaults?.controlName ??
+              "Original content"
+            }
             required
           />
 
           <s-text-field
             label="Treatment variant name"
             name="treatmentName"
-            value="Treatment content"
+            value={
+              followUpDefaults?.treatmentName ??
+              "Treatment content"
+            }
             required
           />
 
           <s-text-field
             label="Treatment replacement text"
             name="changeValue"
+            value={followUpDefaults?.changeValue ?? ""}
             required
           />
 

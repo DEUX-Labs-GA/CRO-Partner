@@ -1,6 +1,9 @@
 import prisma from "../db.server";
 
-export const PRODUCT_FUNNEL_WINDOW_DAYS = 30;
+import {
+  PRODUCT_FUNNEL_WINDOW_DAYS,
+  type ProductFunnelWindowDays,
+} from "./product-funnel";
 
 const FUNNEL_EVENTS = [
   "product_viewed",
@@ -32,16 +35,24 @@ type FunnelStep = {
 
 type FunnelOptions = {
   selectedProductId?: string | null;
+  windowDays?: ProductFunnelWindowDays;
 };
 
 export async function loadProductFunnel(
   shop: string,
   selectedProductId?: string | null,
+  windowDays: ProductFunnelWindowDays = PRODUCT_FUNNEL_WINDOW_DAYS,
 ) {
-  const windowStart = new Date();
+  const windowEnd = new Date();
 
+  const windowStart = new Date(windowEnd);
   windowStart.setUTCDate(
-    windowStart.getUTCDate() - PRODUCT_FUNNEL_WINDOW_DAYS,
+    windowStart.getUTCDate() - windowDays,
+  );
+
+  const previousWindowStart = new Date(windowStart);
+  previousWindowStart.setUTCDate(
+    previousWindowStart.getUTCDate() - windowDays,
   );
 
   const events = await prisma.behaviorEvent.findMany({
@@ -54,7 +65,8 @@ export async function loadProductFunnel(
         not: null,
       },
       occurredAt: {
-        gte: windowStart,
+        gte: previousWindowStart,
+        lt: windowEnd,
       },
     },
     select: {
@@ -70,9 +82,119 @@ export async function loadProductFunnel(
     },
   });
 
-  return summarizeProductFunnel(events, windowStart, {
-    selectedProductId,
-  });
+  const currentEvents = events.filter(
+    (event) =>
+      event.occurredAt >= windowStart &&
+      event.occurredAt < windowEnd,
+  );
+
+  const previousEvents = events.filter(
+    (event) =>
+      event.occurredAt >= previousWindowStart &&
+      event.occurredAt < windowStart,
+  );
+
+  const currentPeriod = summarizeProductFunnel(
+    currentEvents,
+    windowStart,
+    {
+      selectedProductId,
+      windowDays,
+    },
+  );
+
+  const previousPeriod = summarizeProductFunnel(
+    previousEvents,
+    previousWindowStart,
+    {
+      selectedProductId,
+      windowDays,
+    },
+  );
+
+  return {
+    ...currentPeriod,
+    previousPeriod,
+    comparison: compareProductFunnels(
+      currentPeriod,
+      previousPeriod,
+    ),
+  };
+}
+
+export function compareProductFunnels(
+  current: ReturnType<typeof summarizeProductFunnel>,
+  previous: ReturnType<typeof summarizeProductFunnel>,
+) {
+  return {
+    trackedVisitors: createMetricComparison(
+      current.trackedVisitors,
+      previous.trackedVisitors,
+    ),
+    purchases: createMetricComparison(
+      current.purchases,
+      previous.purchases,
+    ),
+    totalRevenue: createMetricComparison(
+      current.totalRevenue,
+      previous.totalRevenue,
+    ),
+    overallConversionRate: createMetricComparison(
+      current.overallConversionRate,
+      previous.overallConversionRate,
+    ),
+    steps: current.steps.map((step, index) => {
+      const previousStep = previous.steps[index];
+
+      return {
+        eventName: step.eventName,
+        visitors: createMetricComparison(
+          step.visitors,
+          previousStep.visitors,
+        ),
+        rateFromPrevious: createMetricComparison(
+          step.rateFromPrevious,
+          previousStep.rateFromPrevious,
+        ),
+        dropOffFromPrevious: createMetricComparison(
+          step.dropOffFromPrevious,
+          previousStep.dropOffFromPrevious,
+        ),
+        dropOffRateFromPrevious: createMetricComparison(
+          step.dropOffRateFromPrevious,
+          previousStep.dropOffRateFromPrevious,
+        ),
+      };
+    }),
+  };
+}
+
+function createMetricComparison(
+  current: number | null,
+  previous: number | null,
+) {
+  if (current === null || previous === null) {
+    return {
+      current,
+      previous,
+      absoluteChange: null,
+      relativeChange: null,
+    };
+  }
+
+  const absoluteChange = current - previous;
+
+  return {
+    current,
+    previous,
+    absoluteChange,
+    relativeChange:
+      previous === 0
+        ? current === 0
+          ? 0
+          : null
+        : absoluteChange / previous,
+  };
 }
 
 export function summarizeProductFunnel(
@@ -212,7 +334,8 @@ export function summarizeProductFunnel(
       counts.checkoutCompleted,
       counts.productViewed,
     ),
-    windowDays: PRODUCT_FUNNEL_WINDOW_DAYS,
+    windowDays:
+      options.windowDays ?? PRODUCT_FUNNEL_WINDOW_DAYS,
     windowStart: windowStart.toISOString(),
     selectedProductId,
     attributionMode: selectedProductId

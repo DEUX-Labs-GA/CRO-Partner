@@ -3,13 +3,19 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Form, useLoaderData } from "react-router";
+import {
+  Form,
+  Link,
+  useLoaderData,
+} from "react-router";
+import { useState } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import {
   assessPreAnalysis,
   loadStoreBaseline,
+  calculateRequiredSamplePerVariant,
 } from "../services/experiment-pre-analysis.server";
 import { loadExperimentResults } from "../services/experiment-results.server";
 import { loadMeasuredTrafficBaseline } from "../services/measured-traffic.server";
@@ -36,15 +42,24 @@ import { CROSampleProgressChart } from "../components/charts/CROSampleProgressCh
 
 import { CROStatisticalDistributionChart } from "../components/charts/CROStatisticalDistributionChart";
 
-import { recommendExperimentResult } from "../services/experiment-recommendations";
+import {
+  recommendExperimentResult,
+  type ResultRecommendationAction,
+} from "../services/experiment-recommendations";
+
+import { buildExperimentCompletionSnapshot } from "../services/experiment-knowledge.server";
 
 export const action = async ({
   request,
   params,
 }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } =
+  await authenticate.admin(request);
   const formData = await request.formData();
+
   const nextStatus = formData.get("status");
+  const completionConfirmed =
+    formData.get("completionConfirmed") === "true";
 
   if (!isExperimentStatus(nextStatus)) {
     throw new Response("Invalid experiment status", {
@@ -57,12 +72,25 @@ export const action = async ({
       id: params.id,
       shop: session.shop,
     },
+    include: {
+      variants: true,
+    },
   });
 
   if (!experiment) {
     throw new Response("Experiment not found", {
       status: 404,
     });
+  }
+
+  if (
+    nextStatus === "COMPLETED" &&
+    !completionConfirmed
+  ) {
+    throw new Response(
+      "Experiment completion requires confirmation",
+      { status: 400 },
+    );
   }
 
   if (
@@ -77,12 +105,22 @@ export const action = async ({
     );
   }
 
+  const completionSnapshot =
+    nextStatus === "COMPLETED"
+      ? await buildExperimentCompletionSnapshot({
+          admin,
+          shop: session.shop,
+          experiment,
+        })
+      : null;
+
   await prisma.experiment.update({
     where: {
       id: experiment.id,
     },
     data: {
       status: nextStatus,
+      ...(completionSnapshot ?? {}),
     },
   });
 
@@ -142,10 +180,23 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             experiment.trackingKey,
           );        
 
+const requiredSamplePerVariant =
+  calculateRequiredSamplePerVariant({
+    baselineConversionRate:
+      experiment.baselineConversionRate,
+    minimumDetectableEffect:
+      experiment.minimumDetectableEffect,
+    significanceLevel:
+      experiment.significanceLevel,
+    statisticalPower:
+      experiment.statisticalPower,
+  });
+
   return {
     experiment,
     results,
     exposureHistory,
+    requiredSamplePerVariant,
     preAnalysis: assessPreAnalysis(
       baseline,
       {
@@ -164,12 +215,19 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function ExperimentDetailPage() {
-  const {
-    experiment,
-    preAnalysis,
-    results,
-    exposureHistory,
-  } = useLoaderData<typeof loader>();
+const {
+  experiment,
+  preAnalysis,
+  results,
+  exposureHistory,
+  requiredSamplePerVariant,
+} = useLoaderData<typeof loader>();
+  const [
+  completionConfirmationContext,
+  setCompletionConfirmationContext,
+  ] = useState<"GENERIC" | "STOP" | "DEPLOY" | null>(
+    null,
+  );
   const primaryMetric = experiment.metrics[0];
   const allowedTransitions =
     getAllowedExperimentTransitions(experiment.status);
@@ -268,16 +326,16 @@ export default function ExperimentDetailPage() {
         })
       : null;
 
-    const plannedSampleReached =
-  Boolean(
-    preAnalysis.estimate &&
-      controlResult &&
-      treatmentResult &&
-      controlResult.visitors >=
-        preAnalysis.estimate.requiredSamplePerVariant &&
-      treatmentResult.visitors >=
-        preAnalysis.estimate.requiredSamplePerVariant,
-  );
+      const plannedSampleReached =
+        Boolean(
+          requiredSamplePerVariant !== null &&
+            controlResult &&
+            treatmentResult &&
+            controlResult.visitors >=
+              requiredSamplePerVariant &&
+            treatmentResult.visitors >=
+              requiredSamplePerVariant,
+        );
 
 const experimentFeasible =
   preAnalysis.readiness === "READY_FOR_ESTIMATION"
@@ -294,6 +352,30 @@ const resultRecommendation =
         experimentFeasible,
       })
     : null;
+
+    const recommendationPresentation =
+  resultRecommendation
+    ? getRecommendationPresentation(
+        resultRecommendation.action,
+      )
+    : null;
+
+const recommendationStatusAction =
+  resultRecommendation
+    ? getRecommendationStatusAction({
+        action: resultRecommendation.action,
+        experimentStatus: experiment.status,
+        allowedTransitions,
+      })
+    : null;
+
+const followUpExperimentHref =
+  resultRecommendation?.action === "RETEST" ||
+  resultRecommendation?.action === "ITERATE"
+    ? `/app/experiments/new?followUpFrom=${encodeURIComponent(
+        experiment.id,
+      )}&followUpMode=${resultRecommendation.action}`
+    : null;    
 
 const variantComparisonData =
   controlResult && treatmentResult
@@ -348,32 +430,144 @@ const variantComparisonData =
               margin: "12px 0 16px",
             }}
           >
-            {allowedTransitions.map((status) => (
-              <Form method="post" key={status}>
+        {allowedTransitions.map((status) =>
+          status === "COMPLETED" ? (
+            <button
+              key={status}
+              type="button"
+              onClick={() =>
+                setCompletionConfirmationContext("GENERIC")
+              }
+              style={{
+                appearance: "none",
+                border: "1px solid #8a8a8a",
+                borderRadius: "8px",
+                background: "#ffffff",
+                color: "#202020",
+                padding: "8px 12px",
+                fontSize: "13px",
+                cursor: "pointer",
+              }}
+            >
+              {formatStatus(status)}
+            </button>
+          ) : (
+            <Form method="post" key={status}>
+              <button
+                type="submit"
+                name="status"
+                value={status}
+                style={{
+                  appearance: "none",
+                  border: "1px solid #8a8a8a",
+                  borderRadius: "8px",
+                  background: "#ffffff",
+                  color: "#202020",
+                  padding: "8px 12px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+              >
+                {formatStatus(status)}
+              </button>
+            </Form>
+          ),
+        )}
+          </div>
+        ) : null}
+
+        {completionConfirmationContext ? (
+          <div
+            style={{
+              margin: "12px 0 16px",
+              padding: "16px",
+              border: "1px solid #c9c9c9",
+              borderRadius: "10px",
+              background: "#fafafa",
+              maxWidth: "720px",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                marginBottom: "6px",
+              }}
+            >
+              Confirm experiment completion
+            </div>
+
+            <div
+              style={{
+                fontSize: "13px",
+                lineHeight: 1.5,
+                marginBottom: "14px",
+              }}
+            >
+              {completionConfirmationContext === "STOP"
+                ? "CRO Partner recommends stopping this experiment. Completing it will end the active experiment lifecycle. The experiment record and results will remain available."
+                : completionConfirmationContext === "DEPLOY"
+                  ? "CRO Partner recommends moving forward with the treatment. Completing this experiment will end the active experiment lifecycle. The experiment record and results will remain available."
+                  : "Completing this experiment will end the active experiment lifecycle. The experiment record and results will remain available."}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setCompletionConfirmationContext(null)
+                }
+                style={{
+                  appearance: "none",
+                  border: "1px solid #8a8a8a",
+                  borderRadius: "8px",
+                  background: "#ffffff",
+                  color: "#202020",
+                  padding: "9px 14px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+
+              <Form method="post">
+                <input
+                  type="hidden"
+                  name="status"
+                  value="COMPLETED"
+                />
+                <input
+                  type="hidden"
+                  name="completionConfirmed"
+                  value="true"
+                />
+
                 <button
                   type="submit"
-                  name="status"
-                  value={status}
                   style={{
                     appearance: "none",
-                    border: "1px solid #8a8a8a",
+                    border: "1px solid #202020",
                     borderRadius: "8px",
-                    background: "#ffffff",
-                    padding: "8px 12px",
+                    background: "#202020",
+                    color: "#ffffff",
+                    padding: "9px 14px",
                     fontSize: "13px",
-                    fontWeight: 600,
+                    fontWeight: 650,
                     cursor: "pointer",
                   }}
                 >
-                  {getTransitionLabel(
-                    experiment.status,
-                    status,
-                  )}
+                  Confirm completion
                 </button>
               </Form>
-            ))}
+            </div>
           </div>
-        ) : null}
+        ) : null}        
 
         <s-paragraph>Created: {experiment.createdAt.toLocaleDateString()}</s-paragraph>
         <s-paragraph>
@@ -470,7 +664,7 @@ const variantComparisonData =
 ) : null}
 
 {sampleProgressData.length === 2 &&
-preAnalysis.estimate ? (
+requiredSamplePerVariant !== null ? (
   <div
     style={{
       marginBottom: "24px",
@@ -500,12 +694,11 @@ preAnalysis.estimate ? (
     </div>
 
     <CROSampleProgressChart
-      data={sampleProgressData}
-      requiredSamplePerVariant={
-        preAnalysis.estimate
-          .requiredSamplePerVariant
-      }
-    />
+    data={sampleProgressData}
+    requiredSamplePerVariant={
+      requiredSamplePerVariant
+    }
+  />    
   </div>
 ) : null}
 
@@ -689,47 +882,183 @@ preAnalysis.estimate ? (
                   }
                 />   
 
-                {resultRecommendation ? (
-                  <div
-                    style={{
-                      marginBottom: "20px",
-                      border: "1px solid #dcdcdc",
-                      borderRadius: "12px",
-                      padding: "16px",
-                      background: "#ffffff",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        color: "#616161",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      CRO Partner recommendation
-                    </div>
+{resultRecommendation && recommendationPresentation ? (
+  <div
+    style={{
+      marginBottom: "20px",
+      border: `1px solid ${recommendationPresentation.border}`,
+      borderLeft: `5px solid ${recommendationPresentation.accent}`,
+      borderRadius: "12px",
+      padding: "18px",
+      background: recommendationPresentation.background,
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: "16px",
+        flexWrap: "wrap",
+        marginBottom: "10px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: "11px",
+            color: "#616161",
+            marginBottom: "5px",
+          }}
+        >
+          CRO Partner recommendation
+        </div>
 
-                    <div
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: 650,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      {resultRecommendation.title}
-                    </div>
+        <div
+          style={{
+            display: "inline-block",
+            border: `1px solid ${recommendationPresentation.accent}`,
+            borderRadius: "999px",
+            padding: "3px 8px",
+            fontSize: "10px",
+            fontWeight: 650,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            marginBottom: "10px",
+          }}
+        >
+          {recommendationPresentation.label}
+        </div>
 
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        lineHeight: 1.55,
-                        color: "#4a4a4a",
-                      }}
-                    >
-                      {resultRecommendation.rationale}
-                    </div>
-                  </div>
-                ) : null}                
+        <div
+          style={{
+            fontSize: "18px",
+            fontWeight: 650,
+            marginBottom: "8px",
+          }}
+        >
+          {resultRecommendation.title}
+        </div>
+      </div>
+    </div>
+
+    <div
+      style={{
+        fontSize: "13px",
+        lineHeight: 1.55,
+        color: "#4a4a4a",
+        maxWidth: "960px",
+      }}
+    >
+      {resultRecommendation.rationale}
+    </div>
+
+    <div
+      style={{
+        marginTop: "12px",
+        paddingTop: "12px",
+        borderTop: "1px solid rgba(0, 0, 0, 0.10)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 700,
+          marginBottom: "5px",
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+        }}
+      >
+        Next action
+      </div>
+
+      <div
+        style={{
+          fontSize: "13px",
+          lineHeight: 1.5,
+          marginBottom: recommendationStatusAction
+            ? "12px"
+            : 0,
+        }}
+      >
+        {recommendationPresentation.nextAction}
+      </div>
+
+      {recommendationStatusAction ? (
+        recommendationStatusAction.status === "COMPLETED" ? (
+          <button
+            type="button"
+            onClick={() =>
+              setCompletionConfirmationContext(
+                resultRecommendation?.action === "STOP"
+                  ? "STOP"
+                  : resultRecommendation?.action === "DEPLOY"
+                    ? "DEPLOY"
+                    : "GENERIC",
+              )
+            }
+            style={{
+              appearance: "none",
+              border: "1px solid #202020",
+              borderRadius: "8px",
+              background: "#202020",
+              color: "#ffffff",
+              padding: "9px 14px",
+              fontSize: "13px",
+              fontWeight: 650,
+              cursor: "pointer",
+            }}
+          >
+            {recommendationStatusAction.label}
+          </button>
+        ) : (
+          <Form method="post">
+            <button
+              type="submit"
+              name="status"
+              value={recommendationStatusAction.status}
+              style={{
+                appearance: "none",
+                border: "1px solid #202020",
+                borderRadius: "8px",
+                background: "#202020",
+                color: "#ffffff",
+                padding: "9px 14px",
+                fontSize: "13px",
+                fontWeight: 650,
+                cursor: "pointer",
+              }}
+            >
+              {recommendationStatusAction.label}
+            </button>
+          </Form>
+        )
+      ) : null}
+
+      {followUpExperimentHref ? (
+        <Link
+          to={followUpExperimentHref}
+          style={{
+            display: "inline-block",
+            appearance: "none",
+            border: "1px solid #202020",
+            borderRadius: "8px",
+            background: "#202020",
+            color: "#ffffff",
+            padding: "9px 14px",
+            fontSize: "13px",
+            fontWeight: 650,
+            lineHeight: 1.2,
+            textDecoration: "none",
+            cursor: "pointer",
+          }}
+        >
+          Create follow-up experiment
+        </Link>
+      ) : null}     
+    </div>
+  </div>
+) : null}           
                 
                     <div
                     style={{
@@ -1183,6 +1512,124 @@ function ResultRow({
       </span>
     </div>
   );
+}
+
+function getRecommendationPresentation(
+  action: ResultRecommendationAction,
+) {
+  switch (action) {
+    case "DEPLOY":
+      return {
+        label: "Ready for rollout review",
+        nextAction:
+          "Review implementation risk and business impact. If the experiment is finished, mark it complete before managing rollout separately.",
+        background: "#f3fbf5",
+        border: "#b7d9bd",
+        accent: "#327a42",
+      };
+
+    case "STOP":
+      return {
+        label: "Do not roll out",
+        nextAction:
+          "End the experiment and retain control unless there is a documented business reason to continue with the treatment.",
+        background: "#fff6f5",
+        border: "#e5bbb5",
+        accent: "#a33b32",
+      };
+
+    case "ITERATE":
+      return {
+        label: "Next hypothesis",
+        nextAction:
+          "Use what this experiment taught you to strengthen the hypothesis and design a materially different variation.",
+        background: "#f7f7fb",
+        border: "#c9c9dc",
+        accent: "#58588a",
+      };
+
+    case "RETEST":
+      return {
+        label: "Redesign recommended",
+        nextAction:
+          "Revise the experiment setup, targeting, traffic scope, or detectable effect before starting another test.",
+        background: "#fff9ed",
+        border: "#e6cea0",
+        accent: "#8a6417",
+      };
+
+    case "INVESTIGATE":
+      return {
+        label: "Validity review required",
+        nextAction:
+          "Review allocation, exposure quality, implementation, and tracking before using the observed result to make a business decision.",
+        background: "#fff8e8",
+        border: "#e3c989",
+        accent: "#866216",
+      };
+
+    case "SEGMENT":
+      return {
+        label: "Explore segments",
+        nextAction:
+          "Inspect whether meaningful audience or behavioral segments are masking materially different responses to the treatment.",
+        background: "#f2f7fc",
+        border: "#b9cee2",
+        accent: "#356b93",
+      };
+
+    case "GATHER_MORE_DATA":
+      return {
+        label: "Keep running",
+        nextAction:
+          "Continue collecting qualified exposures until the planned sample is reached or the experiment becomes operationally impractical.",
+        background: "#f2f7fc",
+        border: "#b9cee2",
+        accent: "#356b93",
+      };
+  }
+}
+
+function getRecommendationStatusAction({
+  action,
+  experimentStatus,
+  allowedTransitions,
+}: {
+  action: ResultRecommendationAction;
+  experimentStatus: string;
+  allowedTransitions: string[];
+}) {
+  /*
+   * Recommendation actions never bypass the experiment lifecycle.
+   * We only expose transitions that are already legal for the
+   * experiment's current state.
+   */
+
+  if (
+    (action === "DEPLOY" || action === "STOP") &&
+    allowedTransitions.includes("COMPLETED")
+  ) {
+    return {
+      status: "COMPLETED",
+      label:
+        action === "DEPLOY"
+          ? "Mark experiment complete"
+          : "Complete and stop experiment",
+    };
+  }
+
+  if (
+    action === "GATHER_MORE_DATA" &&
+    experimentStatus === "PAUSED" &&
+    allowedTransitions.includes("RUNNING")
+  ) {
+    return {
+      status: "RUNNING",
+      label: "Resume experiment",
+    };
+  }
+
+  return null;
 }
 
 function formatStatus(status: string) {
