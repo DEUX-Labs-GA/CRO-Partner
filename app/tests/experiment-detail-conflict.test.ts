@@ -31,6 +31,17 @@ const experiment = {
   id: "experiment-1", shop: "example.myshopify.com", status: "RUNNING",
   updatedAt: new Date("2026-11-17T00:00:00Z"), variants: [],
 };
+const admin = {};
+const completionSnapshot = {
+  completedAt: new Date("2026-11-17T01:00:00Z"),
+  resultOutcome: "INSUFFICIENT_DATA",
+  resultSummary: "Control: n/a (0/0). Treatment: n/a (0/0). Relative lift: n/a. p-value: n/a.",
+  interpretation: "There was not enough analyzable evidence for a directional conclusion.",
+  recommendationAction: "GATHER_MORE_DATA",
+  recommendationTitle: "Keep collecting data",
+  recommendationRationale: "There is not enough evidence to call a winner yet. Continue the experiment if the planned sample is realistically achievable.",
+} satisfies Awaited<ReturnType<typeof import("../services/experiment-knowledge.server").buildExperimentCompletionSnapshot>>;
+
 function request(status = "PAUSED", confirmed = false) {
   return new Request("https://example.test/app/experiments/experiment-1?shop=example.myshopify.com&host=test-host", {
     method: "POST",
@@ -43,10 +54,10 @@ function runAction(status?: string, confirmed?: boolean) {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.authenticate.mockResolvedValue({ admin: {}, session: { shop: experiment.shop } });
+  mocks.authenticate.mockResolvedValue({ admin, session: { shop: experiment.shop } });
   mocks.findFirst.mockResolvedValue(experiment);
   mocks.updateMany.mockResolvedValue({ count: 0 });
-  mocks.snapshot.mockResolvedValue({ completionSummary: "saved snapshot" });
+  mocks.snapshot.mockResolvedValue(completionSnapshot);
   mocks.boundaryError.mockReturnValue(createElement("p", null, "Standard error"));
 });
 
@@ -117,9 +128,20 @@ describe("experiment status conflict recovery", () => {
   it("saves a confirmed completion snapshot when the guarded update succeeds", async () => {
     mocks.updateMany.mockResolvedValue({ count: 1 });
     await expect(runAction("COMPLETED", true)).resolves.toEqual({ ok: true });
-    expect(mocks.snapshot).toHaveBeenCalledOnce();
-    expect(mocks.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: { status: "COMPLETED", completionSummary: "saved snapshot" },
-    }));
+    expect(mocks.snapshot).toHaveBeenCalledExactlyOnceWith({ admin, shop: experiment.shop, experiment });
+    expect(mocks.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: experiment.id, shop: experiment.shop, status: "RUNNING", updatedAt: experiment.updatedAt },
+      data: { status: "COMPLETED", ...completionSnapshot },
+    });
+  });
+
+  it("rejects a confirmed completion with HTTP 409 when the guarded update loses the race", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 0 });
+    await expect(runAction("COMPLETED", true)).rejects.toMatchObject({ status: 409 });
+    expect(mocks.snapshot).toHaveBeenCalledExactlyOnceWith({ admin, shop: experiment.shop, experiment });
+    expect(mocks.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: experiment.id, shop: experiment.shop, status: "RUNNING", updatedAt: experiment.updatedAt },
+      data: { status: "COMPLETED", ...completionSnapshot },
+    });
   });
 });
