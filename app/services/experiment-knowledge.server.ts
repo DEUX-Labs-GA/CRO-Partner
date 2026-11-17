@@ -1,3 +1,4 @@
+import { buildCompletionInterpretation } from "./experiment-completion-interpretation";
 import type {
   AdminApiContext,
 } from "@shopify/shopify-app-react-router/server";
@@ -193,8 +194,9 @@ export async function buildExperimentCompletionSnapshot({
     }),
 
     interpretation:
-      buildInterpretation(
+      buildCompletionInterpretation(
         statistics.outcome,
+        plannedSampleReached,
       ),
 
     recommendationAction:
@@ -253,30 +255,4 @@ function buildResultSummary({
     `Relative lift: ${lift}.`,
     `p-value: ${p}.`,
   ].join(" ");
-}
-
-function buildInterpretation(
-  outcome:
-    | "INSUFFICIENT_DATA"
-    | "INCONCLUSIVE"
-    | "TREATMENT_LEADING"
-    | "CONTROL_LEADING"
-    | "NO_DIFFERENCE",
-) {
-  switch (outcome) {
-    case "INSUFFICIENT_DATA":
-      return "There was not enough analyzable evidence for a directional conclusion.";
-
-    case "INCONCLUSIVE":
-      return "The experiment did not produce a reliable directional result.";
-
-    case "TREATMENT_LEADING":
-      return "The treatment produced a reliable directional advantage over control.";
-
-    case "CONTROL_LEADING":
-      return "Control produced a reliable directional advantage over the treatment.";
-
-    case "NO_DIFFERENCE":
-      return "The experiment reached its planned sample without a meaningful performance advantage.";
-  }
 }
