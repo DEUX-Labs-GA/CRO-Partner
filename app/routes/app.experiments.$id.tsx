@@ -6,7 +6,10 @@ import type {
 import {
   Form,
   Link,
+  isRouteErrorResponse,
   useLoaderData,
+  useLocation,
+  useRouteError,
 } from "react-router";
 import { useState } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -1795,3 +1798,29 @@ function formatValidityStatus(
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const location = useLocation();
+
+  if (isRouteErrorResponse(error) && error.status === 409) {
+    return (
+      <s-page heading="Experiment changed">
+        <div role="alert">
+          <h2>Your status change was not saved</h2>
+          <p>
+            This experiment changed while your request was being processed.
+            Reload the latest experiment, review its status, and try again if
+            the change is still needed. Completing it will require confirmation
+            again.
+          </p>
+        </div>
+        <Link to={`${location.pathname}${location.search}`} reloadDocument>
+          Reload experiment
+        </Link>
+      </s-page>
+    );
+  }
+
+  return boundary.error(error);
+}
