@@ -114,15 +114,25 @@ export const action = async ({
         })
       : null;
 
-  await prisma.experiment.update({
+  const transition = await prisma.experiment.updateMany({
     where: {
       id: experiment.id,
+      shop: session.shop,
+      status: experiment.status,
+      updatedAt: experiment.updatedAt,
     },
     data: {
       status: nextStatus,
       ...(completionSnapshot ?? {}),
     },
   });
+
+  if (transition.count !== 1) {
+    throw new Response(
+      "Experiment changed while this request was being processed. Reload and try again.",
+      { status: 409 },
+    );
+  }
 
   return { ok: true };
 };
