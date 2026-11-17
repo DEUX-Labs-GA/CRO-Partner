@@ -25,7 +25,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
   boundary: { error: mocks.boundaryError, headers: vi.fn() },
 }));
 
-import { action, ErrorBoundary } from "../routes/app.experiments.$id";
+import ExperimentDetailPage, { action, ErrorBoundary } from "../routes/app.experiments.$id";
 
 const experiment = {
   id: "experiment-1", shop: "example.myshopify.com", status: "RUNNING",
@@ -143,5 +143,109 @@ describe("experiment status conflict recovery", () => {
       where: { id: experiment.id, shop: experiment.shop, status: "RUNNING", updatedAt: experiment.updatedAt },
       data: { status: "COMPLETED", ...completionSnapshot },
     });
+  });
+});
+
+
+describe("saved completion snapshot display", () => {
+  const saved = {
+    completedAt: new Date("2026-11-16T12:34:56Z"),
+    resultOutcome: "TREATMENT_LEADING",
+    resultSummary: "Saved summary from completion.",
+    interpretation: "Saved directional interpretation.",
+    recommendationAction: "DEPLOY",
+    recommendationTitle: "Saved rollout recommendation",
+    recommendationRationale: "Saved rationale from completion.",
+  };
+
+  type SavedSnapshot = { [Key in keyof typeof saved]: (typeof saved)[Key] | null };
+
+  async function renderDetail(snapshot: SavedSnapshot = saved, status = "COMPLETED") {
+    // Supply synthetic loader data; no service or Shopify calls are made.
+    const handler = createStaticHandler([{
+      path: "/app/experiments/:id",
+      loader: () => ({
+        experiment: {
+          ...experiment, ...snapshot, status,
+          name: "Synthetic experiment", hypothesis: "Synthetic hypothesis",
+          createdAt: new Date("2026-11-01T00:00:00Z"),
+          metrics: [], significanceLevel: 0.95,
+          baselineConversionRate: 0.05, minimumDetectableEffect: 0.2, statisticalPower: 0.8,
+        },
+        results: {
+          totalExposedVisitors: 20, excludedAmbiguousVisitors: 0, currency: "USD",
+          variants: ["control", "variant-a"].map(variantId => ({
+            variantId, visitors: 10, purchases: 0, addedToCart: 0,
+            checkoutStarted: 0, conversionRate: 0, revenue: 0, revenuePerVisitor: 0,
+          })),
+        },
+        preAnalysis: {
+          readiness: "READY_FOR_ESTIMATION", estimate: null,
+          orderWindow: { label: "Last 30 days", days: 30 }, recentOrderCount: 0,
+          orderDataAvailable: true, ordersPerDay: 0, productCount: 1,
+        },
+        exposureHistory: [], requiredSamplePerVariant: null,
+      }),
+      Component: ExperimentDetailPage,
+    }]);
+    const context = await handler.query(new Request(request().url));
+    if (context instanceof Response) throw new Error("Unexpected response");
+    expect(context.errors).toBeNull();
+    return renderToStaticMarkup(createElement(StaticRouterProvider, {
+      router: createStaticRouter(handler.dataRoutes, context), context, hydrate: false,
+    }));
+  }
+
+  function savedSection(html: string) {
+    return html.split('<s-section heading="Saved completion snapshot">')[1]?.split("</s-section>")[0];
+  }
+
+  it("shows persisted completion values separately from differing current analysis", async () => {
+    const html = await renderDetail();
+    const snapshot = savedSection(html);
+    expect(snapshot).toContain("2026-11-16T12:34:56.000Z");
+    expect(snapshot).toContain("Outcome: Treatment Leading");
+    expect(snapshot).toContain(saved.resultSummary);
+    expect(snapshot).toContain(saved.interpretation);
+    expect(snapshot).toContain("Recommendation action: Deploy");
+    expect(snapshot).toContain(saved.recommendationTitle);
+    expect(snapshot).toContain(saved.recommendationRationale);
+    expect(snapshot).not.toContain("Insufficient Data");
+    const current = html.split('<s-section heading="Experiment results — current analysis">')[1];
+    expect(current).toContain("Insufficient Data");
+    expect(current).toContain("Keep collecting data");
+    expect(current).toContain("recalculated using current data");
+    expect(current).not.toContain(saved.resultSummary);
+    expect(current).not.toContain(saved.recommendationRationale);
+  });
+
+  it("marks missing historical fields without substituting current analysis", async () => {
+    const html = await renderDetail({
+      completedAt: null, resultOutcome: null, resultSummary: null,
+      interpretation: "", recommendationAction: null,
+      recommendationTitle: " ", recommendationRationale: null,
+    });
+    const snapshot = savedSection(html)!;
+    for (const label of ["Completion time", "Outcome", "Summary", "Interpretation",
+      "Recommendation action", "Recommendation title", "Recommendation rationale"]) {
+      expect(snapshot).toContain(`${label}: Not saved`);
+    }
+    expect(snapshot).not.toContain("Insufficient Data");
+    expect(snapshot).not.toContain("Keep collecting data");
+    expect(html).toContain("Keep collecting data");
+  });
+
+  it("keeps partially saved fields when other snapshot fields are missing", async () => {
+    const snapshot = savedSection(await renderDetail({
+      ...saved, interpretation: null, recommendationRationale: null,
+    }));
+    expect(snapshot).toContain(saved.resultSummary);
+    expect(snapshot).toContain(saved.recommendationTitle);
+    expect(snapshot).toContain("Interpretation: Not saved");
+    expect(snapshot).toContain("Recommendation rationale: Not saved");
+  });
+
+  it("does not label active experiment data as a saved completion snapshot", async () => {
+    expect(savedSection(await renderDetail(saved, "RUNNING"))).toBeUndefined();
   });
 });

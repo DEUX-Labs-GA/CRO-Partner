@@ -588,6 +588,29 @@ const variantComparisonData =
           {primaryMetric ? ` (${primaryMetric.type})` : ""}
         </s-paragraph>
       </s-section>
+      {experiment.status === "COMPLETED" ? (
+        <s-section heading="Saved completion snapshot">
+          <s-paragraph>
+            These values were saved when the experiment was completed.
+            Missing historical values are shown as “Not saved”.
+          </s-paragraph>
+          <s-paragraph>
+            Completion time: {experiment.completedAt
+              ? new Date(experiment.completedAt).toISOString()
+              : "Not saved"}
+          </s-paragraph>
+          <s-paragraph>Outcome: {experiment.resultOutcome
+            ? formatStatisticalOutcome(experiment.resultOutcome)
+            : "Not saved"}</s-paragraph>
+          <s-paragraph>Summary: {experiment.resultSummary?.trim() || "Not saved"}</s-paragraph>
+          <s-paragraph>Interpretation: {experiment.interpretation?.trim() || "Not saved"}</s-paragraph>
+          <s-paragraph>Recommendation action: {experiment.recommendationAction
+            ? formatStatus(experiment.recommendationAction)
+            : "Not saved"}</s-paragraph>
+          <s-paragraph>Recommendation title: {experiment.recommendationTitle?.trim() || "Not saved"}</s-paragraph>
+          <s-paragraph>Recommendation rationale: {experiment.recommendationRationale?.trim() || "Not saved"}</s-paragraph>
+        </s-section>
+      ) : null}
       <s-section heading="Variants">
         <s-unordered-list>
           {experiment.variants.map((variant) => (
@@ -597,7 +620,11 @@ const variantComparisonData =
           ))}
         </s-unordered-list>
       </s-section>
-      <s-section heading="Experiment results">
+      <s-section heading="Experiment results — current analysis">
+        <s-paragraph>
+          Analysis below is recalculated using current data and may differ from
+          the saved completion snapshot.
+        </s-paragraph>
         {!results ? (
           <s-paragraph>
             Results tracking has not been connected to this experiment yet.
