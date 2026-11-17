@@ -139,6 +139,28 @@ describe("experiment result recommendations", () => {
     expect(recommendation.action).toBe("STOP");
   });
 
+  it("recommends iterating after a valid no-difference result reaches planned sample", () => {
+    const statistics = calculateExperimentStatistics({
+      control: {
+        visitors: 5000,
+        conversions: 500,
+      },
+      treatment: {
+        visitors: 5000,
+        conversions: 500,
+      },
+    });
+
+    const recommendation = recommendExperimentResult({
+      statistics,
+      plannedSampleReached: true,
+      experimentFeasible: true,
+    });
+
+    expect(statistics.outcome).toBe("NO_DIFFERENCE");
+    expect(recommendation.action).toBe("ITERATE");
+  });
+
   it("recommends retesting an impractical inconclusive experiment", () => {
     const statistics = calculateExperimentStatistics({
       control: {

@@ -84,6 +84,34 @@ enum OpportunityImpact {
   HIGH
 }
 
+enum ExperimentResultOutcome {
+  INSUFFICIENT_DATA
+  INCONCLUSIVE
+  TREATMENT_LEADING
+  CONTROL_LEADING
+  NO_DIFFERENCE
+}
+
+enum ExperimentRecommendationAction {
+  DEPLOY
+  STOP
+  ITERATE
+  RETEST
+  INVESTIGATE
+  SEGMENT
+  GATHER_MORE_DATA
+}
+
+enum ExperimentDecision {
+  DEPLOY_TREATMENT
+  KEEP_CONTROL
+  ITERATE
+  RETEST
+  CONTINUE_TEST
+  NO_ACTION
+  OTHER
+}
+
 model Experiment {
   id                      String           @id @default(cuid())
   shop                    String
@@ -96,30 +124,49 @@ model Experiment {
   status                  ExperimentStatus @default(DRAFT)
   trackingKey             String?
   targetProductId         String?
-  variants                Variant[]
-  metrics                 Metric[]
-  createdAt               DateTime         @default(now())
-  updatedAt               DateTime         @updatedAt
+
+  completedAt DateTime?
+
+  resultOutcome  ExperimentResultOutcome?
+  resultSummary  String?
+  interpretation String?
+
+  recommendationAction    ExperimentRecommendationAction?
+  recommendationTitle     String?
+  recommendationRationale String?
+
+  decision ExperimentDecision?
+
+  revenueImpact         Float?
+  revenueImpactCurrency String?
+
+  learning String?
+  followUp String?
+
+  variants  Variant[]
+  metrics   Metric[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([shop])
 }
 
 model Variant {
-  id            String                @id @default(cuid())
-  experimentId  String
-  name          String
-  isControl     Boolean               @default(false)
+  id           String  @id @default(cuid())
+  experimentId String
+  name         String
+  isControl    Boolean @default(false)
 
   // Legacy title-specific treatment. Remove after migration.
   titleOverride String?
 
-  target        ExperimentTarget?
-  changeType    ExperimentChangeType?
-  changeValue   String?
+  target      ExperimentTarget?
+  changeType  ExperimentChangeType?
+  changeValue String?
 
-  experiment    Experiment            @relation(fields: [experimentId], references: [id], onDelete: Cascade)
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  experiment Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
   @@index([experimentId])
 }
@@ -169,10 +216,10 @@ model Opportunity {
   effort          Float
   priorityScore   Float
 
-  status          OpportunityStatus @default(RESEARCH_NEEDED)
+  status OpportunityStatus @default(RESEARCH_NEEDED)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([shop])
   @@index([shop, status])

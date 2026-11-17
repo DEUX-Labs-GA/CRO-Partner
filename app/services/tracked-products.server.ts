@@ -1,5 +1,5 @@
 import prisma from "../db.server";
-import { PRODUCT_FUNNEL_WINDOW_DAYS } from "./product-funnel.server";
+import { PRODUCT_FUNNEL_WINDOW_DAYS } from "./product-funnel";
 
 type TrackedProductEvent = {
   productId: string | null;

@@ -11,6 +11,10 @@ import {
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { loadProductFunnel } from "../services/product-funnel.server";
+import {
+  PRODUCT_FUNNEL_WINDOW_OPTIONS,
+  type ProductFunnelWindowDays,
+} from "../services/product-funnel";
 import { loadTrackedProducts } from "../services/tracked-products.server";
 import { detectFunnelOpportunities } from "../services/opportunity-detection.server";
 import { saveDetectedOpportunity } from "../services/opportunity-backlog.server";
@@ -39,6 +43,17 @@ export const action = async ({
 
   const requestedProductId =
     formData.get("productId");
+
+const requestedWindowDays = Number(
+  formData.get("windowDays") ?? 30,
+);
+
+const windowDays: ProductFunnelWindowDays =
+  PRODUCT_FUNNEL_WINDOW_OPTIONS.includes(
+    requestedWindowDays as ProductFunnelWindowDays,
+  )
+    ? (requestedWindowDays as ProductFunnelWindowDays)
+    : 30;    
 
   if (typeof ruleId !== "string") {
     throw new Response(
@@ -81,11 +96,12 @@ export const action = async ({
   const productId =
     selectedProduct?.productId ?? null;
 
-  const funnel =
-    await loadProductFunnel(
-      session.shop,
-      productId,
-    );
+const funnel =
+  await loadProductFunnel(
+    session.shop,
+    productId,
+    windowDays,
+  );
 
   const detected =
     detectFunnelOpportunities(funnel);
@@ -115,15 +131,22 @@ export const action = async ({
     opportunity,
   });
 
-  const query =
-    productId
-      ? `?productId=${encodeURIComponent(
-          productId,
-        )}`
-      : "";
+  const searchParams = new URLSearchParams();
+
+  if (productId) {
+    searchParams.set(
+      "productId",
+      productId,
+    );
+  }
+
+  searchParams.set(
+    "windowDays",
+    String(windowDays),
+  );
 
   return redirect(
-    `/app/analytics${query}`,
+    `/app/analytics?${searchParams.toString()}`,
   );
 };
 
@@ -132,6 +155,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
   const selectedProductId = url.searchParams.get("productId") ?? "";
+
+  const requestedWindowDays = Number(
+    url.searchParams.get("windowDays") ?? 30,
+  );
+
+  const windowDays: ProductFunnelWindowDays =
+    PRODUCT_FUNNEL_WINDOW_OPTIONS.includes(
+      requestedWindowDays as ProductFunnelWindowDays,
+    )
+      ? (requestedWindowDays as ProductFunnelWindowDays)
+      : 30;
 
   const products = await loadTrackedProducts(session.shop);
 
@@ -149,6 +183,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const funnel = await loadProductFunnel(
     session.shop,
     funnelProductId,
+    windowDays,
   );
 
   const opportunities =
@@ -160,6 +195,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     products,
     selectedProductId: funnelProductId ?? "",
     selectedProduct,
+    windowDays,
   };
 };
 
@@ -170,6 +206,7 @@ export default function AnalyticsPage() {
     products,
     selectedProductId,
     selectedProduct,
+    windowDays,
   } = useLoaderData<typeof loader>();
 
   const isProductFiltered = Boolean(selectedProduct);
@@ -237,6 +274,36 @@ export default function AnalyticsPage() {
               </select>
             </div>
 
+            <div>
+              <label
+                htmlFor="windowDays"
+                style={{
+                  display: "block",
+                  fontWeight: 600,
+                  marginBottom: "6px",
+                }}
+              >
+                Reporting window
+              </label>
+
+              <select
+                id="windowDays"
+                name="windowDays"
+                defaultValue={String(windowDays)}
+                style={{
+                  minWidth: "140px",
+                  minHeight: "36px",
+                  padding: "6px 10px",
+                }}
+              >
+                {PRODUCT_FUNNEL_WINDOW_OPTIONS.map((days) => (
+                  <option key={days} value={days}>
+                    Last {days} days
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button
               type="submit"
               style={{
@@ -276,19 +343,43 @@ export default function AnalyticsPage() {
       </s-section>
 
       <s-stack direction="inline" gap="base">
-        <s-section heading="Tracked visitors">
-          <s-paragraph>{funnel.trackedVisitors}</s-paragraph>
-        </s-section>
+      <s-section heading="Tracked visitors">
+        <s-paragraph>{funnel.trackedVisitors}</s-paragraph>
+        <s-paragraph>
+          {formatComparison(
+            funnel.comparison.trackedVisitors.relativeChange,
+            funnel.comparison.trackedVisitors.absoluteChange,
+            "number",
+            funnel.windowDays,
+          )}
+        </s-paragraph>
+      </s-section>
 
-        <s-section heading="Purchases">
-          <s-paragraph>{funnel.purchases}</s-paragraph>
-        </s-section>
+      <s-section heading="Purchases">
+        <s-paragraph>{funnel.purchases}</s-paragraph>
+        <s-paragraph>
+          {formatComparison(
+            funnel.comparison.purchases.relativeChange,
+            funnel.comparison.purchases.absoluteChange,
+            "number",
+            funnel.windowDays,
+          )}
+        </s-paragraph>
+      </s-section>
 
-        <s-section heading="PDP conversion rate">
-          <s-paragraph>
-            {formatPercent(funnel.overallConversionRate)}
-          </s-paragraph>
-        </s-section>
+      <s-section heading="PDP conversion rate">
+        <s-paragraph>
+          {formatPercent(funnel.overallConversionRate)}
+        </s-paragraph>
+        <s-paragraph>
+          {formatComparison(
+            funnel.comparison.overallConversionRate.relativeChange,
+            funnel.comparison.overallConversionRate.absoluteChange,
+            "rate",
+            funnel.windowDays,
+          )}
+        </s-paragraph>
+      </s-section>
 
         <s-section
           heading={
@@ -297,9 +388,19 @@ export default function AnalyticsPage() {
               : "Tracked revenue"
           }
         >
-          <s-paragraph>
-            {formatCurrency(funnel.totalRevenue, funnel.currency)}
-          </s-paragraph>
+        <s-paragraph>
+          {formatCurrency(funnel.totalRevenue, funnel.currency)}
+        </s-paragraph>
+
+        <s-paragraph>
+          {formatComparison(
+            funnel.comparison.totalRevenue.relativeChange,
+            funnel.comparison.totalRevenue.absoluteChange,
+            "currency",
+            funnel.windowDays,
+            funnel.currency,
+          )}
+        </s-paragraph>
         </s-section>
       </s-stack>
 
@@ -320,17 +421,35 @@ export default function AnalyticsPage() {
           <s-table-header-row>
             <s-table-header>Step</s-table-header>
             <s-table-header>Visitors</s-table-header>
+            <s-table-header>Previous period</s-table-header>
+            <s-table-header>Change</s-table-header>
             <s-table-header>From previous</s-table-header>
             <s-table-header>Drop-off</s-table-header>
             <s-table-header>From product view</s-table-header>
           </s-table-header-row>
 
           <s-table-body>
-            {funnel.steps.map((step) => (
+            {funnel.steps.map((step, index) => {
+              const comparisonStep = funnel.comparison.steps[index];
+
+              return (
               <s-table-row key={step.eventName}>
                 <s-table-cell>{step.label}</s-table-cell>
 
                 <s-table-cell>{step.visitors}</s-table-cell>
+
+                <s-table-cell>
+                  {comparisonStep.visitors.previous}
+                </s-table-cell>
+
+                <s-table-cell>
+                  {formatComparison(
+                    comparisonStep.visitors.relativeChange,
+                    comparisonStep.visitors.absoluteChange,
+                    "number",
+                    funnel.windowDays,
+                  )}
+                </s-table-cell>
 
                 <s-table-cell>
                   {formatPercent(step.rateFromPrevious)}
@@ -347,7 +466,8 @@ export default function AnalyticsPage() {
                   {formatPercent(step.rateFromProductView)}
                 </s-table-cell>
               </s-table-row>
-            ))}
+              );
+            })} 
           </s-table-body>
         </s-table>
       </s-section>
@@ -435,6 +555,12 @@ export default function AnalyticsPage() {
                     value={selectedProductId}
                   />
 
+                  <input
+                    type="hidden"
+                    name="windowDays"
+                    value={windowDays}
+                  />                  
+
                   <button
                     type="submit"
                     style={{
@@ -520,4 +646,53 @@ function formatLabel(value: string) {
     .replace(/(^|_)([a-z])/g, (_, prefix, letter) =>
       `${prefix ? " " : ""}${letter.toUpperCase()}`,
     );
+}
+
+function formatComparison(
+  relativeChange: number | null,
+  absoluteChange: number | null,
+  type: "number" | "rate" | "currency",
+  windowDays: number,
+  currency?: string | null,
+) {
+  if (absoluteChange === null) {
+    return `No comparable prior-period data`;
+  }
+
+  const direction =
+    absoluteChange > 0
+      ? "+"
+      : absoluteChange < 0
+        ? ""
+        : "";
+
+  let changeLabel: string;
+
+  if (type === "rate") {
+    changeLabel = `${direction}${(absoluteChange * 100).toFixed(1)} pts`;
+  } else if (type === "currency") {
+    changeLabel =
+      direction +
+      formatCurrency(
+        absoluteChange,
+        currency ?? null,
+      );
+  } else {
+    changeLabel = `${direction}${absoluteChange}`;
+  }
+
+  if (relativeChange === null) {
+    return `${changeLabel} vs previous ${windowDays} days`;
+  }
+
+  const relativeDirection =
+    relativeChange > 0
+      ? "+"
+      : relativeChange < 0
+        ? ""
+        : "";
+
+  return `${changeLabel} (${relativeDirection}${(
+    relativeChange * 100
+  ).toFixed(1)}%) vs previous ${windowDays} days`;
 }

@@ -161,6 +161,77 @@ function inverseNormalCdf(probability: number): number {
     (((((denominator[0] * r + denominator[1]) * r + denominator[2]) * r + denominator[3]) * r + denominator[4]) * r + denominator[5]);
 }
 
+export function calculateRequiredSamplePerVariant(
+  assumptions: FeasibilityAssumptions,
+): number | null {
+  const {
+    baselineConversionRate,
+    minimumDetectableEffect,
+    significanceLevel,
+    statisticalPower,
+  } = assumptions;
+
+  if (
+    baselineConversionRate === null ||
+    !Number.isFinite(baselineConversionRate) ||
+    baselineConversionRate <= 0 ||
+    baselineConversionRate >= 1 ||
+    !Number.isFinite(minimumDetectableEffect) ||
+    minimumDetectableEffect <= 0 ||
+    !Number.isFinite(significanceLevel) ||
+    significanceLevel <= 0 ||
+    significanceLevel >= 1 ||
+    !Number.isFinite(statisticalPower) ||
+    statisticalPower <= 0 ||
+    statisticalPower >= 1
+  ) {
+    return null;
+  }
+
+  const targetConversionRate =
+    baselineConversionRate *
+    (1 + minimumDetectableEffect);
+
+  if (targetConversionRate >= 1) {
+    return null;
+  }
+
+  const alphaZ = inverseNormalCdf(
+    1 - (1 - significanceLevel) / 2,
+  );
+
+  const powerZ =
+    inverseNormalCdf(statisticalPower);
+
+  const pooledRate =
+    (baselineConversionRate +
+      targetConversionRate) /
+    2;
+
+  const difference =
+    targetConversionRate -
+    baselineConversionRate;
+
+  return Math.ceil(
+    (
+      alphaZ *
+        Math.sqrt(
+          2 *
+            pooledRate *
+            (1 - pooledRate),
+        ) +
+      powerZ *
+        Math.sqrt(
+          baselineConversionRate *
+            (1 - baselineConversionRate) +
+            targetConversionRate *
+              (1 - targetConversionRate),
+        )
+    ) ** 2 /
+      difference ** 2,
+  );
+}
+
 export function calculateFeasibility(
   baseline: Pick<StoreBaseline, "recentOrderCount" | "orderWindow">,
   assumptions: FeasibilityAssumptions,
